@@ -186,6 +186,11 @@ pub struct Config {
     /// All characters are inserted as they are received, and no buffering
     /// or placeholder replacement will occur for fast keypress bursts.
     pub disable_paste_burst: bool,
+
+    /// Default timeout for shell/exec tool calls, in milliseconds, applied
+    /// when a specific call does not set `timeout_ms`. If `None`, the
+    /// compiled default in `codex_core::exec` is used.
+    pub default_exec_timeout_ms: Option<u64>,
 }
 
 impl Config {
@@ -353,6 +358,11 @@ pub struct TopLevelConfigUpdate {
     pub model_reasoning_effort: Option<ReasoningEffort>,
     pub approval_policy: Option<AskForApproval>,
     pub sandbox_mode: Option<SandboxMode>,
+    /// Tri-state update for the default exec timeout:
+    /// - None: do not change
+    /// - Some(Some(v)): set to v milliseconds
+    /// - Some(None): remove key (revert to compiled default)
+    pub default_exec_timeout_ms: Option<Option<u64>>,
 }
 
 /// Apply updates to top-level fields in `CODEX_HOME/config.toml`.
@@ -387,6 +397,16 @@ pub fn apply_top_level_config_update(
     if let Some(mode) = update.sandbox_mode {
         // kebab-case string per protocol serde
         root["sandbox_mode"] = toml_edit::value(mode.to_string());
+    }
+    if let Some(timeout_opt) = update.default_exec_timeout_ms {
+        match timeout_opt {
+            Some(v) => {
+                root["default_exec_timeout_ms"] = toml_edit::value(v as i64);
+            }
+            None => {
+                let _ = root.remove("default_exec_timeout_ms");
+            }
+        }
     }
 
     // ensure codex_home exists
@@ -556,6 +576,10 @@ pub struct ConfigToml {
     /// All characters are inserted as they are received, and no buffering
     /// or placeholder replacement will occur for fast keypress bursts.
     pub disable_paste_burst: Option<bool>,
+
+    /// Default timeout for shell/exec tool calls, in milliseconds, applied
+    /// when a specific call does not set `timeout_ms`.
+    pub default_exec_timeout_ms: Option<u64>,
 }
 
 #[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -870,6 +894,7 @@ impl Config {
                 .unwrap_or(false),
             include_view_image_tool,
             disable_paste_burst: cfg.disable_paste_burst.unwrap_or(false),
+            default_exec_timeout_ms: cfg.default_exec_timeout_ms,
         };
         Ok(config)
     }
@@ -1248,6 +1273,7 @@ model_verbosity = "high"
                 use_experimental_streamable_shell_tool: false,
                 include_view_image_tool: true,
                 disable_paste_burst: false,
+                default_exec_timeout_ms: None,
             },
             o3_profile_config
         );
@@ -1306,6 +1332,7 @@ model_verbosity = "high"
             use_experimental_streamable_shell_tool: false,
             include_view_image_tool: true,
             disable_paste_burst: false,
+            default_exec_timeout_ms: None,
         };
 
         assert_eq!(expected_gpt3_profile_config, gpt3_profile_config);
@@ -1379,6 +1406,7 @@ model_verbosity = "high"
             use_experimental_streamable_shell_tool: false,
             include_view_image_tool: true,
             disable_paste_burst: false,
+            default_exec_timeout_ms: None,
         };
 
         assert_eq!(expected_zdr_profile_config, zdr_profile_config);
@@ -1438,6 +1466,7 @@ model_verbosity = "high"
             use_experimental_streamable_shell_tool: false,
             include_view_image_tool: true,
             disable_paste_burst: false,
+            default_exec_timeout_ms: None,
         };
 
         assert_eq!(expected_gpt5_profile_config, gpt5_profile_config);
