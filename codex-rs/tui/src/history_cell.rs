@@ -1066,6 +1066,13 @@ pub(crate) fn new_stream_error_event(message: String) -> PlainHistoryCell {
     PlainHistoryCell { lines }
 }
 
+/// Render a simple informational message in the history.
+pub(crate) fn new_info_event(message: String) -> PlainHistoryCell {
+    let lines: Vec<Line<'static>> =
+        vec![vec![padded_emoji("ℹ️").into(), " ".into(), message.into()].into()];
+    PlainHistoryCell { lines }
+}
+
 /// Render a user‑friendly plan update styled like a checkbox todo list.
 pub(crate) fn new_plan_update(update: UpdatePlanArgs) -> PlanUpdateCell {
     let UpdatePlanArgs { explanation, plan } = update;

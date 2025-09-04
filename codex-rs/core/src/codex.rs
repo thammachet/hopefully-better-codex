@@ -305,6 +305,8 @@ pub(crate) struct TurnContext {
     pub(crate) sandbox_policy: SandboxPolicy,
     pub(crate) shell_environment_policy: ShellEnvironmentPolicy,
     pub(crate) tools_config: ToolsConfig,
+    /// Default exec timeout to apply when a tool call does not specify one.
+    pub(crate) default_exec_timeout_ms: Option<u64>,
 }
 
 impl TurnContext {
@@ -475,6 +477,11 @@ impl Session {
             sandbox_policy,
             shell_environment_policy: config.shell_environment_policy.clone(),
             cwd,
+<<<<<<< HEAD
+=======
+            disable_response_storage,
+            default_exec_timeout_ms: config.default_exec_timeout_ms,
+>>>>>>> 5c4afa76 (Add override default run timeout setting using /configuration slash command)
         };
 
         let sess = Arc::new(Session {
@@ -1158,6 +1165,8 @@ async fn submission_loop(
                     sandbox_policy: new_sandbox_policy.clone(),
                     shell_environment_policy: prev.shell_environment_policy.clone(),
                     cwd: new_cwd.clone(),
+                    disable_response_storage: prev.disable_response_storage,
+                    default_exec_timeout_ms: prev.default_exec_timeout_ms,
                 };
 
                 // Install the new persistent context for subsequent tasks/turns.
@@ -1239,6 +1248,8 @@ async fn submission_loop(
                         sandbox_policy,
                         shell_environment_policy: turn_context.shell_environment_policy.clone(),
                         cwd,
+                        disable_response_storage: turn_context.disable_response_storage,
+                        default_exec_timeout_ms: turn_context.default_exec_timeout_ms,
                     };
                     // TODO: record the new environment context in the conversation history
                     // no current task, spawn a new one with the per‑turn context
@@ -2281,7 +2292,7 @@ fn to_exec_params(params: ShellToolCallParams, turn_context: &TurnContext) -> Ex
     ExecParams {
         command: params.command,
         cwd: turn_context.resolve_path(params.workdir.clone()),
-        timeout_ms: params.timeout_ms,
+        timeout_ms: params.timeout_ms.or(turn_context.default_exec_timeout_ms),
         env: create_env(&turn_context.shell_environment_policy),
         with_escalated_permissions: params.with_escalated_permissions,
         justification: params.justification,

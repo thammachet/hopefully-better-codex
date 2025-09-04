@@ -822,6 +822,9 @@ impl ChatWidget {
             SlashCommand::New => {
                 self.app_event_tx.send(AppEvent::NewSession);
             }
+            SlashCommand::Configuration => {
+                self.open_configuration_popup();
+            }
             SlashCommand::Init => {
                 const INIT_PROMPT: &str = include_str!("../prompt_for_init_command.md");
                 self.submit_text_message(INIT_PROMPT.to_string());
@@ -1256,6 +1259,59 @@ impl ChatWidget {
         );
     }
 
+    /// Open a popup with configuration options.
+    pub(crate) fn open_configuration_popup(&mut self) {
+        // Show a text input for the default exec timeout.
+        let current = self.config.default_exec_timeout_ms;
+        let initial_text = current.map(|v| v.to_string()).unwrap_or_default();
+
+        let on_accept = |tx: &crate::app_event_sender::AppEventSender, text: String| {
+            fn parse_timeout(s: &str) -> Result<u64, String> {
+                let trimmed = s.trim().to_lowercase();
+                if trimmed.is_empty() {
+                    return Err("empty input".to_string());
+                }
+                // Extract numeric prefix and unit suffix
+                let mut idx = 0usize;
+                for ch in trimmed.chars() {
+                    if ch.is_ascii_digit() {
+                        idx += ch.len_utf8();
+                    } else {
+                        break;
+                    }
+                }
+                let (num_part, unit) = trimmed.split_at(idx);
+                let val: u64 = num_part.parse().map_err(|_| "invalid number".to_string())?;
+                let ms = match unit {
+                    "" | "ms" => val,
+                    "s" => val.saturating_mul(1_000),
+                    "m" => val.saturating_mul(60_000),
+                    other => return Err(format!("unknown unit: {other} (use ms, s, or m)")),
+                };
+                if (500..=1_800_000).contains(&ms) {
+                    Ok(ms)
+                } else {
+                    Err("out of range (500ms..=30m)".to_string())
+                }
+            }
+
+            match parse_timeout(&text) {
+                Ok(ms) => tx.send(AppEvent::UpdateDefaultExecTimeoutMs(Some(ms))),
+                Err(msg) => tx.send(AppEvent::InsertHistoryCell(Box::new(
+                    crate::history_cell::new_error_event(format!("Invalid timeout: {msg}")),
+                ))),
+            }
+        };
+
+        self.bottom_pane.show_text_input_view(
+            "Set default exec timeout".to_string(),
+            Some("Examples: 15000, 15s, 2m (range: 500ms–30m)".to_string()),
+            Some("Enter to save, Esc to cancel".to_string()),
+            initial_text,
+            Box::new(on_accept),
+        );
+    }
+
     /// Set the approval policy in the widget's config copy.
     pub(crate) fn set_approval_policy(&mut self, policy: AskForApproval) {
         self.config.approval_policy = policy;
@@ -1274,6 +1330,11 @@ impl ChatWidget {
     /// Set the model in the widget's config copy.
     pub(crate) fn set_model(&mut self, model: String) {
         self.config.model = model;
+    }
+
+    /// Set the default exec timeout in the widget's config copy.
+    pub(crate) fn set_default_exec_timeout_ms(&mut self, timeout_ms: Option<u64>) {
+        self.config.default_exec_timeout_ms = timeout_ms;
     }
 
     pub(crate) fn add_mcp_output(&mut self) {

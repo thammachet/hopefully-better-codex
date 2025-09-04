@@ -57,6 +57,10 @@ pub(crate) enum AppEvent {
     /// Update the current sandbox policy in the running app and widget.
     UpdateSandboxPolicy(SandboxPolicy),
 
+    /// Update persisted default exec timeout (milliseconds). When `None`,
+    /// removes the key to revert to the compiled default.
+    UpdateDefaultExecTimeoutMs(Option<u64>),
+
     /// Forwarded conversation history snapshot from the current conversation.
     ConversationHistory(ConversationHistoryResponseEvent),
 }

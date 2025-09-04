@@ -12,6 +12,7 @@ use ratatui::layout::Rect;
 use ratatui::style::Color;
 use ratatui::style::Modifier;
 use ratatui::style::Style;
+use ratatui::style::Styled;
 use ratatui::style::Stylize;
 use ratatui::text::Line;
 use ratatui::text::Span;
@@ -1312,7 +1313,7 @@ impl WidgetRef for ChatComposer {
                 // If Esc‑clear is primed, show a short hint: pressing Esc again clears input.
                 if !self.ctrl_c_quit_hint && self.esc_clear_primed_at.is_some() {
                     hint.push("   ".into());
-                    hint.push("Esc".set_style(key_hint_style));
+                    hint.push(key_hint::plain("Esc"));
                     hint.push(" again clear".into());
                 }
 
@@ -1383,10 +1384,11 @@ impl ChatComposer {
     /// If the Esc‑clear hint has expired, clear it. Returns true if it changed.
     pub(crate) fn expire_esc_clear_hint_if_due(&mut self, now: Instant) -> bool {
         if let Some(t) = self.esc_clear_primed_at
-            && now.duration_since(t) > ESC_CLEAR_WINDOW {
-                self.esc_clear_primed_at = None;
-                return true;
-            }
+            && now.duration_since(t) > ESC_CLEAR_WINDOW
+        {
+            self.esc_clear_primed_at = None;
+            return true;
+        }
         false
     }
 

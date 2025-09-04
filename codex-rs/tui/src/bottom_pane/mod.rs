@@ -26,6 +26,7 @@ mod paste_burst;
 mod popup_consts;
 mod scroll_state;
 mod selection_popup_common;
+mod text_input_view;
 mod textarea;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -337,6 +338,27 @@ impl BottomPane {
             subtitle,
             footer_hint,
             items,
+            self.app_event_tx.clone(),
+        );
+        self.active_view = Some(Box::new(view));
+        self.request_redraw();
+    }
+
+    /// Show a simple single-line text input view with an on-accept callback.
+    pub(crate) fn show_text_input_view(
+        &mut self,
+        title: String,
+        subtitle: Option<String>,
+        footer_hint: Option<String>,
+        initial_value: String,
+        on_accept: Box<dyn Fn(&AppEventSender, String) + Send + Sync>,
+    ) {
+        let view = text_input_view::TextInputView::new(
+            title,
+            subtitle,
+            footer_hint,
+            initial_value,
+            on_accept,
             self.app_event_tx.clone(),
         );
         self.active_view = Some(Box::new(view));

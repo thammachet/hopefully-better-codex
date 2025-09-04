@@ -351,6 +351,31 @@ impl App {
                     },
                 );
             }
+            AppEvent::UpdateDefaultExecTimeoutMs(timeout_opt) => {
+                // Update widget + app config
+                self.chat_widget.set_default_exec_timeout_ms(timeout_opt);
+                self.config.default_exec_timeout_ms = timeout_opt;
+
+                // Persist to config.toml (set or remove)
+                let _ = apply_top_level_config_update(
+                    &self.config.codex_home,
+                    TopLevelConfigUpdate {
+                        default_exec_timeout_ms: Some(timeout_opt),
+                        ..Default::default()
+                    },
+                );
+
+                // Inform the user
+                let msg = match timeout_opt {
+                    Some(ms) => {
+                        format!("Saved default exec timeout = {ms} ms (applies to new sessions)")
+                    }
+                    None => "Reset default exec timeout (using compiled default)".to_string(),
+                };
+                self.app_event_tx.send(AppEvent::InsertHistoryCell(Box::new(
+                    crate::history_cell::new_info_event(msg),
+                )));
+            }
         }
         Ok(true)
     }
