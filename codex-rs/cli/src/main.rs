@@ -59,6 +59,9 @@ enum Subcommand {
     /// Experimental: run Codex as an MCP server.
     Mcp,
 
+    /// Run the Codex Web server.
+    Web(WebCommand),
+
     /// Run the Protocol stream via stdin/stdout
     #[clap(visible_alias = "p")]
     Proto(ProtoCli),
@@ -89,6 +92,21 @@ struct CompletionCommand {
 struct DebugArgs {
     #[command(subcommand)]
     cmd: DebugCommand,
+}
+
+#[derive(Debug, clap::Parser)]
+struct WebCommand {
+    /// Host interface to bind (default: 127.0.0.1)
+    #[arg(long, default_value = "127.0.0.1")]
+    host: String,
+
+    /// Port to listen on (default: 7878)
+    #[arg(long, default_value_t = 7878)]
+    port: u16,
+
+    /// Optional static files directory to serve at '/'
+    #[arg(long, value_name = "DIR")]
+    static_dir: Option<PathBuf>,
 }
 
 #[derive(Debug, clap::Subcommand)]
@@ -160,6 +178,14 @@ async fn cli_main(codex_linux_sandbox_exe: Option<PathBuf>) -> anyhow::Result<()
         }
         Some(Subcommand::Mcp) => {
             codex_mcp_server::run_main(codex_linux_sandbox_exe, cli.config_overrides).await?;
+        }
+        Some(Subcommand::Web(web_cmd)) => {
+            let opts = codex_web::ServerOpts {
+                host: web_cmd.host,
+                port: web_cmd.port,
+                static_dir: web_cmd.static_dir,
+            };
+            codex_web::run_main(codex_linux_sandbox_exe, cli.config_overrides, opts).await?;
         }
         Some(Subcommand::Login(mut login_cli)) => {
             prepend_config_flags(&mut login_cli.config_overrides, cli.config_overrides);
