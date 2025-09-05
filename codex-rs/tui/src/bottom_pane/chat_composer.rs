@@ -87,6 +87,10 @@ pub(crate) struct ChatComposer {
     is_task_running: bool,
     // Non-bracketed paste burst tracker.
     paste_burst: PasteBurst,
+    // Briefly suppress Enter-as-submit right after an explicit paste
+    // to avoid accidental submission when the pasted content contains
+    // newlines and terminals deliver a trailing Enter quickly.
+    enter_suppress_until: Option<Instant>,
     // When true, disables paste-burst logic and inserts characters immediately.
     disable_paste_burst: bool,
     custom_prompts: Vec<CustomPrompt>,
@@ -130,6 +134,7 @@ impl ChatComposer {
             placeholder_text,
             is_task_running: false,
             paste_burst: PasteBurst::default(),
+            enter_suppress_until: None,
             disable_paste_burst: false,
             custom_prompts: Vec::new(),
             esc_clear_primed_at: None,
@@ -213,6 +218,11 @@ impl ChatComposer {
         }
         // Explicit paste events should not trigger Enter suppression.
         self.paste_burst.clear_after_explicit_paste();
+        // But we do want to briefly treat the next Enter as a newline instead
+        // of submit to avoid accidental submission when the pasted content
+        // contains newlines.
+        const ENTER_SUPPRESS_MS: u64 = 120; // match paste_burst window
+        self.enter_suppress_until = Some(Instant::now() + Duration::from_millis(ENTER_SUPPRESS_MS));
         // Keep popup sync consistent with key handling: prefer slash popup; only
         // sync @-popup (model or file) when slash popup is NOT active.
         self.sync_command_popup();
@@ -853,7 +863,24 @@ impl ChatComposer {
                         return (InputResult::None, true);
                     }
                 }
-                // If we have pending placeholder pastes, submit immediately to expand them.
+
+                // During a paste-like burst, treat Enter as a newline instead of submit.
+                let now = Instant::now();
+                // Also suppress Enter-as-submit briefly after an explicit paste event.
+                if self.enter_suppress_until.is_some_and(|until| now <= until) {
+                    self.enter_suppress_until = None;
+                    self.textarea.insert_str("\n");
+                    return (InputResult::None, true);
+                }
+                if self
+                    .paste_burst
+                    .newline_should_insert_instead_of_submit(now)
+                {
+                    self.textarea.insert_str("\n");
+                    self.paste_burst.extend_window(now);
+                    return (InputResult::None, true);
+                }
+                // If we have pending placeholder pastes, submit to expand them now.
                 if !self.pending_pastes.is_empty() {
                     let mut text = self.textarea.text().to_string();
                     self.textarea.set_text("");
@@ -868,17 +895,6 @@ impl ChatComposer {
                     }
                     self.history.record_local_submission(&text);
                     return (InputResult::Submitted(text), true);
-                }
-
-                // During a paste-like burst, treat Enter as a newline instead of submit.
-                let now = Instant::now();
-                if self
-                    .paste_burst
-                    .newline_should_insert_instead_of_submit(now)
-                {
-                    self.textarea.insert_str("\n");
-                    self.paste_burst.extend_window(now);
-                    return (InputResult::None, true);
                 }
                 let mut text = self.textarea.text().to_string();
                 self.textarea.set_text("");
@@ -1661,11 +1677,14 @@ mod tests {
         assert_eq!(composer.textarea.text(), "hello");
         assert!(composer.pending_pastes.is_empty());
 
-        let (result, _) =
-            composer.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
-        match result {
+        // First Enter right after paste is suppressed to newline
+        let (r1, _) = composer.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+        assert_eq!(r1, InputResult::None);
+        // Second Enter submits the text
+        let (r2, _) = composer.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+        match r2 {
             InputResult::Submitted(text) => assert_eq!(text, "hello"),
-            _ => panic!("expected Submitted"),
+            other => panic!("expected Submitted, got: {other:?}"),
         }
     }
 
@@ -1721,11 +1740,16 @@ mod tests {
         assert_eq!(composer.pending_pastes[0].0, placeholder);
         assert_eq!(composer.pending_pastes[0].1, large);
 
-        let (result, _) =
+        // First Enter right after paste should be treated as newline (not submit)
+        let (result1, _) =
             composer.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
-        match result {
-            InputResult::Submitted(text) => assert_eq!(text, large),
-            _ => panic!("expected Submitted"),
+        assert_eq!(result1, InputResult::None);
+        // Second Enter should expand placeholder and submit full content (including the newline added above).
+        let (result2, _) =
+            composer.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+        match result2 {
+            InputResult::Submitted(text) => assert_eq!(text, format!("{large}\n")),
+            other => panic!("expected Submitted, got: {other:?}"),
         }
         assert!(composer.pending_pastes.is_empty());
     }
@@ -2052,11 +2076,16 @@ mod tests {
             ]
         );
 
-        // Submit and verify final expansion
-        let (result, _) =
-            composer.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
-        if let InputResult::Submitted(text) = result {
-            assert_eq!(text, format!("{} and {}", test_cases[0].0, test_cases[2].0));
+        // First Enter after the last explicit paste should be suppressed to newline
+        let (r1, _) = composer.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+        assert_eq!(r1, InputResult::None);
+        // Second Enter expands placeholders and submits
+        let (r2, _) = composer.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+        if let InputResult::Submitted(text) = r2 {
+            assert_eq!(
+                text,
+                format!("{} and {}\n", test_cases[0].0, test_cases[2].0)
+            );
         } else {
             panic!("expected Submitted");
         }
@@ -2200,9 +2229,12 @@ mod tests {
         let path = PathBuf::from("/tmp/image1.png");
         composer.attach_image(path.clone(), 32, 16, "PNG");
         composer.handle_paste(" hi".into());
-        let (result, _) =
-            composer.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
-        match result {
+        // First Enter right after paste is suppressed to newline
+        let (r1, _) = composer.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+        assert_eq!(r1, InputResult::None);
+        // Second Enter submits text including image placeholder
+        let (r2, _) = composer.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+        match r2 {
             InputResult::Submitted(text) => assert_eq!(text, "[image 32x16 PNG] hi"),
             _ => panic!("expected Submitted"),
         }
@@ -2223,9 +2255,9 @@ mod tests {
         );
         let path = PathBuf::from("/tmp/image2.png");
         composer.attach_image(path.clone(), 10, 5, "PNG");
-        let (result, _) =
-            composer.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
-        match result {
+        // No explicit paste here; Enter should submit directly
+        let (r, _) = composer.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+        match r {
             InputResult::Submitted(text) => assert_eq!(text, "[image 10x5 PNG]"),
             _ => panic!("expected Submitted"),
         }
