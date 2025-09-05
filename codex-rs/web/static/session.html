@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Codex Session</title>
+    <link rel="stylesheet" href="/assets/index.css" />
+    <link rel="stylesheet" href="/assets/session.css" />
+  </head>
+  <body>
+    <header class="app-header" role="banner">
+      <div class="brand">
+        <a class="home" href="/" aria-label="Codex Home">
+          <span class="logo">▮</span>
+          <span class="name">Codex</span>
+        </a>
+      </div>
+      <nav class="nav" aria-label="Primary"></nav>
+      <div class="status" aria-live="polite">
+        <span id="ws" class="pill pill-muted" title="WebSocket status">WS: —</span>
+        <span id="tokens" class="pill pill-muted" title="Token usage">Tokens: —</span>
+        <span id="model-pill" class="pill pill-muted" title="Model">Model: —</span>
+        <span id="approval-pill" class="pill pill-muted" title="Approval">Approval: —</span>
+        <span id="sandbox-pill" class="pill pill-muted" title="Sandbox">Sandbox: —</span>
+        <span id="cwd-pill" class="pill pill-muted" title="CWD">CWD: —</span>
+      </div>
+      <div class="actions">
+        <button id="interrupt" class="btn ghost" aria-label="Interrupt">Interrupt</button>
+        <button id="export" class="btn ghost" aria-label="Export JSONL">Export</button>
+        <button id="git-btn" class="btn ghost" aria-label="Git auto-commit">Git</button>
+        <button id="theme" class="btn ghost" aria-label="Toggle theme">Theme</button>
+      </div>
+    </header>
+    <main class="container" role="main">
+      <div class="card controls-card" id="ctx-card">
+        <div class="controls">
+          <div class="field">
+            <label for="ctx-model">Model</label>
+            <select id="ctx-model">
+              <option value="gpt-5">gpt-5</option>
+              <option value="o3">o3</option>
+              <option value="gpt-4o">gpt-4o</option>
+              <option value="custom">Custom…</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="ctx-model-custom">Custom Model</label>
+            <input id="ctx-model-custom" type="text" placeholder="custom model slug" class="hidden" />
+          </div>
+          <div class="field">
+            <label for="effort">Effort</label>
+            <select id="effort">
+              <option value="minimal">minimal</option>
+              <option value="low">low</option>
+              <option value="medium">medium</option>
+              <option value="high">high</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="ctx-approval">Approval</label>
+            <select id="ctx-approval">
+              <option>on-request</option>
+              <option>on-failure</option>
+              <option>untrusted</option>
+              <option>never</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="ctx-sandbox">Sandbox</label>
+            <select id="ctx-sandbox">
+              <option value="workspace-write">workspace-write</option>
+              <option value="read-only">read-only</option>
+              <option value="danger-full-access">danger-full-access</option>
+            </select>
+          </div>
+          <div class="field field-wide">
+            <label for="ctx-cwd">CWD</label>
+            <input id="ctx-cwd" type="text" list="cwd-list" placeholder="/path/to/workspace" />
+            <datalist id="cwd-list"></datalist>
+          </div>
+        </div>
+      </div>
+      <div class="grid2">
+        <div class="card feed-card">
+          <div class="card-head">
+            <h3 id="title" class="meta">Session</h3>
+            <span id="reason-pill" class="pill pill-info">Reasoning: —</span>
+          </div>
+          <div id="feed" class="feed" aria-live="polite"></div>
+          <div id="new-ind" class="new-indicator"><button class="btn ghost" id="scroll-new">New activity • Scroll</button></div>
+        </div>
+        <div class="card composer">
+          <h3>Chat</h3>
+          <textarea id="chat" rows="3" placeholder="Type your prompt..."></textarea>
+          <div class="right"><button id="send" class="btn primary">Send</button></div>
+        </div>
+        <div class="card plan-card">
+          <h3>Plan</h3>
+          <div id="plan" class="plan"></div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Approval Modal -->
+    <div id="approval-modal" class="modal" aria-hidden="true" role="dialog" aria-modal="true" aria-label="Approval">
+      <div class="modal-card approval-card">
+        <div class="approval-head"><div id="approval-title">Approval</div><button id="approval-close" class="btn ghost">Close</button></div>
+        <div class="approval-body" id="approval-body"></div>
+        <div class="approval-actions">
+          <button id="approve" class="btn">Approve</button>
+          <button id="approve-session" class="btn">Approve for Session</button>
+          <button id="deny" class="btn ghost">Deny</button>
+          <button id="abort" class="btn ghost">Abort</button>
+        </div>
+      </div>
+    </div>
+    <!-- Inline scripts moved to /assets/session.js -->
+    <!-- Palette Modal -->
+    <div id="palette-modal" class="modal" aria-hidden="true" role="dialog" aria-modal="true" aria-label="Command palette">
+      <div class="modal-card">
+        <input id="palette-input" class="palette-input" placeholder="Type a command…" aria-label="Command input" />
+        <div id="palette-list" class="palette-list" role="listbox" aria-label="Commands"></div>
+      </div>
+    </div>
+    <!-- Git Auto-Commit Modal -->
+    <div id="git-modal" class="modal" aria-hidden="true" role="dialog" aria-modal="true" aria-label="Git auto-commit">
+      <div class="modal-card" style="padding:12px">
+        <div class="card-head"><h3 style="margin:0">Git Auto-Commit</h3><button id="git-close" class="btn ghost">Close</button></div>
+        <div style="display:flex; flex-direction:column; gap:8px; padding:10px 0">
+          <label for="git-message">Commit message</label>
+          <input id="git-message" type="text" placeholder="chore: update" />
+          <div style="display:flex; gap:12px; flex-wrap:wrap; margin-top:6px">
+            <label><input id="git-pull" type="checkbox" checked /> Pull first</label>
+            <label><input id="git-add" type="checkbox" checked /> Add all changes</label>
+            <label><input id="git-push" type="checkbox" checked /> Push after commit</label>
+          </div>
+          <div class="muted" id="git-hint">Runs in current CWD. May require approvals.</div>
+        </div>
+        <div class="approval-actions"><button id="git-run" class="btn">Run</button><button id="git-cancel" class="btn ghost">Cancel</button></div>
+      </div>
+    </div>
+    <!-- Palette and plan rendering moved to /assets/session.js -->
+    <script type="module" src="/assets/session.js"></script>
+  </body>
+ </html>

@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use axum::Json;
 use axum::Router;
+use axum::extract::Path;
 use axum::extract::State;
 use axum::routing::get;
 use axum::routing::post;
@@ -75,6 +76,11 @@ pub async fn run_main(
 
     let mut app = Router::new()
         .route("/healthz", get(|| async { "ok" }))
+        // Production static pages
+        .route("/", get(home_static))
+        .route("/session/:id", get(session_static))
+        .route("/pty", get(pty_static))
+        // APIs / WebSockets
         .route("/api/sessions", post(create_session))
         .route("/api/sessions/:id/events", get(server::ws_events))
         .route("/api/pty", get(server::ws_pty))
@@ -91,7 +97,9 @@ pub async fn run_main(
     if let Some(dir) = opts.static_dir.clone() {
         app = app.nest_service("/", tower_http::services::ServeDir::new(dir));
     } else {
-        app = app.route("/", get(root_index));
+        // Also serve /assets from the built-in static folder if present
+        let assets = format!("{}/static/assets", env!("CARGO_MANIFEST_DIR"));
+        app = app.nest_service("/assets", tower_http::services::ServeDir::new(assets));
     }
 
     let addr: SocketAddr = format!("{}:{}", opts.host, opts.port).parse()?;
@@ -101,7 +109,7 @@ pub async fn run_main(
     Ok(())
 }
 
-async fn root_index() -> axum::response::Html<String> {
+async fn home_page() -> axum::response::Html<String> {
     let html = r###"<!doctype html>
 <html lang="en">
   <head>
@@ -171,8 +179,8 @@ async fn root_index() -> axum::response::Html<String> {
     <header>
       <h1>Codex Web</h1>
       <nav>
-        <a href="#/">Home</a>
-        <a href="#/pty">Terminal</a>
+        <a href="/">Home</a>
+        <a href="/pty">Terminal</a>
       </nav>
       <div class="toggle"><button id="theme-toggle">Theme</button></div>
       <div id="ws-global" class="muted ws-status"></div>
@@ -188,19 +196,9 @@ async fn root_index() -> axum::response::Html<String> {
 
       // Theme toggle
       const themeBtn = $('#theme-toggle');
-      themeBtn.onclick = ()=>{ const cur=document.body.getAttribute('data-theme'); document.body.setAttribute('data-theme', cur==='light'? 'dark':'light'); };
-
-      function route(){ return location.hash.replace(/^#/, '') || '/'; }
-      window.addEventListener('hashchange', render);
-      render();
-
-      async function render(){
-        const r = route();
-        if(r === '/' ) return renderHome();
-        if(r.startsWith('/session/')) return renderSession(r.split('/')[2]);
-        if(r === '/pty') return renderPty();
-        $('#app').textContent='Not found';
-      }
+      const savedTheme = localStorage.getItem('codex-theme');
+      if(savedTheme){ document.body.setAttribute('data-theme', savedTheme); }
+      themeBtn.onclick = ()=>{ const cur=document.body.getAttribute('data-theme')||'dark'; const next=cur==='light'?'dark':'light'; document.body.setAttribute('data-theme', next); localStorage.setItem('codex-theme', next); };
 
       async function renderHome(){
         const app = $('#app');
@@ -246,7 +244,7 @@ async fn root_index() -> axum::response::Html<String> {
 
         $('#btn-create').onclick = async()=>{
           const btn=$('#btn-create'); const body = { cwd: $('#cwd').value || null, model: $('#model').value || 'gpt-5', approval_policy: $('#approval').value, sandbox_mode: $('#sandbox').value };
-          try{ btn.disabled=true; btn.innerHTML='<span class="spinner"></span> Creating…'; const r = await post('/api/sessions', body); Toast.show('Session created'); location.hash = `#/session/${r.session_id}`; }
+          try{ btn.disabled=true; btn.innerHTML='<span class="spinner"></span> Creating…'; const r = await post('/api/sessions', body); Toast.show('Session created'); location.href = `/session/${r.session_id}`; }
           catch(e){ Toast.show('Create failed: '+e.message); }
           finally{ btn.disabled=false; btn.textContent='Create'; }
         };
@@ -266,7 +264,7 @@ async fn root_index() -> axum::response::Html<String> {
               ]);
               rollList.append(row);
               row.querySelector('button').onclick = async()=>{
-                try{ const r = await post('/api/sessions/resume',{path: it.path}); Toast.show('Resumed session'); location.hash = `#/session/${r.session_id}`; }
+                try{ const r = await post('/api/sessions/resume',{path: it.path}); Toast.show('Resumed session'); location.href = `/session/${r.session_id}`; }
                 catch(e){ Toast.show('Resume failed: '+e.message); }
               };
             }
@@ -285,6 +283,7 @@ async fn root_index() -> axum::response::Html<String> {
 
         function selBox(id, items, value){ const s=el('select',{id}); for(const v of items){ const o=el('option',{value:v},v); if(v===value) o.selected=true; s.append(o);} return s; }
       }
+      renderHome();
 
       async function renderSession(id){
         const app=$('#app'); app.innerHTML='';
@@ -494,6 +493,144 @@ async fn root_index() -> axum::response::Html<String> {
   </body>
 </html>"###;
     axum::response::Html(html.to_string())
+}
+
+async fn session_page(Path(id): Path<String>) -> axum::response::Html<String> {
+    // Minimal page scaffolding; reuses the same CSS theme for consistency.
+    let id_json = serde_json::to_string(&id).unwrap();
+    let prefix = r###"<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Codex Session
+    "###;
+    let mid_title = r###"</title>
+    <style>
+      :root{ --bg:#0b0e14; --bg-soft:#0f1420; --glass:#0f1420cc; --fg:#e6edf3; --muted:#9aa4b2; --line:#1f2736; --accent:#5b9dff; --accent2:#9f5bff; }
+      body{ margin:0; color:var(--fg); background:var(--bg); font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"; }
+      header{ position:sticky; top:0; backdrop-filter:saturate(140%) blur(8px); background:linear-gradient(180deg, var(--glass), transparent); border-bottom:1px solid var(--line); padding:12px 16px; display:flex; align-items:center; gap:12px; z-index:10 }
+      header a{ color:var(--fg); text-decoration:none; padding:6px 10px; border-radius:8px; border:1px solid var(--line); background:var(--bg-soft) }
+      main{ padding:20px; max-width:1200px; margin:0 auto }
+      .rowh{ display:flex; gap:8px; align-items:center }
+      .grid2{ display:grid; grid-template-columns: 1fr 1fr; gap:12px }
+      .feed{ border:1px solid var(--line); border-radius:16px; padding:12px; background:var(--glass); max-height:55vh; overflow:auto }
+      .msg{ padding:8px 8px; border-bottom:1px dashed var(--line) }
+      .msg:last-child{ border-bottom:0 }
+      .meta{ font-size:12px; color:var(--muted) }
+      pre{ margin:6px 0 0; white-space:pre-wrap; word-break:break-word }
+      .card{ border:1px solid var(--line); border-radius:16px; padding:18px; background:var(--glass) }
+      textarea, input, select, button{ font:inherit }
+      textarea{ width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--bg-soft); color:var(--fg) }
+      button{ padding:10px 14px; border-radius:12px; border:1px solid var(--line); background:linear-gradient(135deg, var(--accent), var(--accent2)); color:#fff; cursor:pointer }
+      .muted{ color:var(--muted) }
+      .pill{ display:inline-block; padding:4px 8px; border:1px solid var(--line); border-radius:999px; font-size:12px; background:var(--bg-soft) }
+      .ws-status{ font-size:12px; margin-left:auto }
+    </style>
+  </head>
+  <body>
+    <header>
+      <a href="/" class="pill">↩ Back</a>
+      <div class="muted">Session
+    "###;
+    let mid_id = id;
+    let rest = r###"</div>
+      <div id="ws-global" class="ws-status"></div>
+    </header>
+    <main>
+      <div class="grid2">
+        <div class="feed" id="feed"></div>
+        <div class="card">
+          <h3>Chat</h3>
+          <textarea id="chat" rows="3" placeholder="Type your prompt..."></textarea>
+          <div style="text-align:right; margin-top:8px"><button id="send">Send</button></div>
+          <div class="muted" style="margin-top:8px">Approvals will appear when needed.</div>
+        </div>
+      </div>
+    </main>
+    <script type="module">
+      const id = 
+    "###;
+    let rest2 = r###";
+      const feed=document.getElementById('feed'); const wsStatus=document.getElementById('ws-global');
+      const add=(cls,meta,text)=>{ const row=document.createElement('div'); row.className=cls; const m=document.createElement('div'); m.className='meta'; m.textContent=meta; row.appendChild(m); const pre=document.createElement('pre'); pre.textContent=text||''; row.appendChild(pre); feed.appendChild(row); feed.scrollTop=feed.scrollHeight; return row; };
+      const agent=()=>{ const row=document.createElement('div'); row.className='msg'; const m=document.createElement('div'); m.className='meta'; m.textContent='assistant'; row.appendChild(m); const pre=document.createElement('pre'); row.appendChild(pre); feed.appendChild(row); return pre; };
+      let agentPre=null; const wsUrl = `${location.protocol==='https:'?'wss':'ws'}://${location.host}/api/sessions/${encodeURIComponent(id)}/events`;
+      function connect(){ const ws=new WebSocket(wsUrl); ws.onopen=()=>{ wsStatus.textContent='connected'; }; ws.onclose=()=>{ wsStatus.textContent='disconnected'; setTimeout(connect, 800); }; ws.onmessage=(ev)=>{ try{ const e=JSON.parse(ev.data); const t=e.msg?.type; if(t==='user_message'){ add('msg','user', e.msg.message||''); } else if(t==='agent_message_delta'){ if(!agentPre) agentPre=agent(); agentPre.textContent += e.msg.delta||''; } else if(t==='agent_message'){ if(!agentPre) agentPre=agent(); agentPre.textContent += e.msg.message||''; agentPre=null; } else if(t==='agent_reasoning' || t==='agent_reasoning_delta'){ add('msg','reasoning', e.msg.text||e.msg.delta||''); } else if(t==='exec_command_begin'){ add('msg','exec begin', (e.msg.command||[]).join(' ')); } else if(t==='exec_command_output_delta'){ const pre=agentPre??add('msg','exec output','').querySelector('pre'); pre.textContent += b64(e.msg.chunk||''); } else if(t==='exec_command_end'){ add('msg','exec end', `exit ${e.msg.exit_code}`); } else if(t==='turn_diff'){ add('msg','changes', e.msg.unified_diff||''); } else { add('msg', t||'event', ''); } }catch{} }; window._ws=ws; }
+      function b64(x){ const bin=atob(x); const bytes=new Uint8Array([...bin].map(c=>c.charCodeAt(0))); return new TextDecoder().decode(bytes); }
+      connect();
+      document.getElementById('send').onclick=()=>{ const ta=document.getElementById('chat'); const txt=ta.value.trim(); if(!txt||!window._ws||_ws.readyState!==1) return; _ws.send(JSON.stringify({type:'user_message', text:txt})); ta.value=''; };
+    </script>
+  </body>
+</html>"###;
+    let mut html = String::new();
+    html.push_str(prefix);
+    html.push_str(&mid_id);
+    html.push_str(mid_title);
+    html.push_str(rest);
+    html.push_str(&id_json);
+    html.push_str(rest2);
+    axum::response::Html(html)
+}
+
+async fn pty_page() -> axum::response::Html<String> {
+    let html = r###"<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Codex Terminal</title>
+    <style>
+      :root{ --bg:#0b0e14; --fg:#e6edf3; --line:#1f2736; --glass:#0f1420; }
+      body{ margin:0; background:var(--bg); color:var(--fg); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace }
+      header{ position:sticky; top:0; background:var(--glass); border-bottom:1px solid var(--line); padding:12px 16px }
+      a{ color:var(--fg); text-decoration:none; padding:6px 10px; border-radius:8px; border:1px solid var(--line) }
+      main{ padding:16px; max-width:1100px; margin:0 auto }
+      pre{ border:1px solid var(--line); background: #080b10; border-radius:12px; padding:12px; height:60vh; overflow:auto }
+      input{ width:100%; padding:10px; border-radius:8px; border:1px solid var(--line); background:#0f1420; color:var(--fg) }
+    </style>
+  </head>
+  <body>
+    <header><a href="/">↩ Back</a></header>
+    <main>
+      <h3>Terminal Mode</h3>
+      <pre id="out"></pre>
+      <input id="in" placeholder="Type and press Enter to send..." />
+    </main>
+    <script type="module">
+      const out=document.getElementById('out'); const input=document.getElementById('in');
+      const ws=new WebSocket(`${location.protocol==='https:'?'wss':'ws'}://${location.host}/api/pty`);
+      ws.onmessage = ev => { out.textContent += ev.data; out.scrollTop=out.scrollHeight; };
+      input.addEventListener('keydown', e=>{ if(e.key==='Enter'){ ws.send(input.value+'\n'); input.value=''; } });
+    </script>
+  </body>
+</html>"###;
+    axum::response::Html(html.to_string())
+}
+
+// Static file handlers
+async fn home_static() -> axum::response::Html<String> {
+    let path = format!("{}/static/index.html", env!("CARGO_MANIFEST_DIR"));
+    let html = tokio::fs::read_to_string(path).await.unwrap_or_else(|_| {
+        "<!doctype html><html><body>Missing static index.html</body></html>".to_string()
+    });
+    axum::response::Html(html)
+}
+
+async fn session_static(Path(_id): Path<String>) -> axum::response::Html<String> {
+    let path = format!("{}/static/session.html", env!("CARGO_MANIFEST_DIR"));
+    let html = tokio::fs::read_to_string(path).await.unwrap_or_else(|_| {
+        "<!doctype html><html><body>Missing static session.html</body></html>".to_string()
+    });
+    axum::response::Html(html)
+}
+
+async fn pty_static() -> axum::response::Html<String> {
+    let path = format!("{}/static/pty.html", env!("CARGO_MANIFEST_DIR"));
+    let html = tokio::fs::read_to_string(path).await.unwrap_or_else(|_| {
+        "<!doctype html><html><body>Missing static pty.html</body></html>".to_string()
+    });
+    axum::response::Html(html)
 }
 
 #[derive(Clone)]
@@ -744,16 +881,31 @@ async fn create_session(
                         .await;
                 }
                 ClientMsg::OverrideTurnContext {
+                    cwd,
                     model,
                     approval_policy,
+                    effort,
+                    sandbox_mode,
                 } => {
+                    use codex_core::protocol::SandboxPolicy;
+                    use codex_protocol::config_types::SandboxMode;
+                    let sandbox_policy = match sandbox_mode {
+                        Some(SandboxMode::ReadOnly) => Some(SandboxPolicy::new_read_only_policy()),
+                        Some(SandboxMode::WorkspaceWrite) => {
+                            Some(SandboxPolicy::new_workspace_write_policy())
+                        }
+                        Some(SandboxMode::DangerFullAccess) => {
+                            Some(SandboxPolicy::DangerFullAccess)
+                        }
+                        None => None,
+                    };
                     let _ = conversation_for_ops
                         .submit(Op::OverrideTurnContext {
-                            cwd: None,
+                            cwd,
                             approval_policy,
-                            sandbox_policy: None,
+                            sandbox_policy,
                             model,
-                            effort: None,
+                            effort,
                             summary: None,
                         })
                         .await;
@@ -863,16 +1015,31 @@ async fn resume_session(
                         .await;
                 }
                 ClientMsg::OverrideTurnContext {
+                    cwd,
                     model,
                     approval_policy,
+                    effort,
+                    sandbox_mode,
                 } => {
+                    use codex_core::protocol::SandboxPolicy;
+                    use codex_protocol::config_types::SandboxMode;
+                    let sandbox_policy = match sandbox_mode {
+                        Some(SandboxMode::ReadOnly) => Some(SandboxPolicy::new_read_only_policy()),
+                        Some(SandboxMode::WorkspaceWrite) => {
+                            Some(SandboxPolicy::new_workspace_write_policy())
+                        }
+                        Some(SandboxMode::DangerFullAccess) => {
+                            Some(SandboxPolicy::DangerFullAccess)
+                        }
+                        None => None,
+                    };
                     let _ = conversation_for_ops
                         .submit(Op::OverrideTurnContext {
-                            cwd: None,
+                            cwd,
                             approval_policy,
-                            sandbox_policy: None,
+                            sandbox_policy,
                             model,
-                            effort: None,
+                            effort,
                             summary: None,
                         })
                         .await;

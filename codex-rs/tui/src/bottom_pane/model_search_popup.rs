@@ -54,14 +54,14 @@ impl ModelSearchPopup {
                 Effort::Low => 2,
                 Effort::Minimal => 3,
             };
-            match a.model.cmp(&b.model) {
+            match a.model.cmp(b.model) {
                 std::cmp::Ordering::Equal => rank(a.effort).cmp(&rank(b.effort)),
                 other => other,
             }
         });
 
         let old_sel = self.state.selected_idx;
-        self.matches = matches.drain(..).collect();
+        self.matches = std::mem::take(&mut matches);
         let len = self.matches.len();
         self.state.clamp_selection(len);
         if old_sel.is_none() && len > 0 {
@@ -95,7 +95,7 @@ impl ModelSearchPopup {
                 };
                 let mut s = String::new();
                 s.push('@');
-                s.push_str(&m.model);
+                s.push_str(m.model);
                 if eff != "default" {
                     s.push('-');
                     s.push_str(eff);
