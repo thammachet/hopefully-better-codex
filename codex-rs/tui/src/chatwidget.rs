@@ -80,6 +80,7 @@ use codex_common::approval_presets::ApprovalPreset;
 use codex_common::approval_presets::builtin_approval_presets;
 use codex_common::model_presets::ModelPreset;
 use codex_common::model_presets::builtin_model_presets;
+// builtin_model_presets is imported below with other related items.
 use codex_core::ConversationManager;
 use codex_core::protocol::AskForApproval;
 use codex_core::protocol::SandboxPolicy;
@@ -963,8 +964,70 @@ impl ChatWidget {
         let UserMessage { text, image_paths } = user_message;
         let mut items: Vec<InputItem> = Vec::new();
 
-        if !text.is_empty() {
-            items.push(InputItem::Text { text: text.clone() });
+        // Detect a one-turn @model token (last occurrence) and strip it from the text.
+        let mut effective_text = text.clone();
+        let mut one_turn_model: Option<(
+            String,
+            codex_protocol::config_types::ReasoningEffort,
+            String,
+        )> = None; // (model, effort, token)
+        if !effective_text.is_empty() {
+            let presets = builtin_model_presets();
+            let mut token_to_match: Option<(
+                usize,
+                String,
+                String,
+                codex_protocol::config_types::ReasoningEffort,
+            )> = None;
+            // Scan tokens with index so we can remove only the last occurrence reliably.
+            let parts: Vec<String> = effective_text
+                .split_whitespace()
+                .map(|s| s.to_string())
+                .collect();
+            for (idx, part) in parts.iter().enumerate() {
+                if let Some(rest) = part.strip_prefix('@') {
+                    // Accept forms: @model or @model-{effort}
+                    let (model_slug, effort_opt) = match rest.split_once('-') {
+                        Some((m, eff)) => (m.to_string(), Some(eff.to_ascii_lowercase())),
+                        None => (rest.to_string(), None),
+                    };
+                    if let Some(preset) = presets.iter().find(|p| p.model == model_slug) {
+                        use codex_core::protocol_config_types::ReasoningEffort as CoreEffort;
+                        use codex_protocol::config_types::ReasoningEffort as ProtoEffort;
+                        let eff = match effort_opt.as_deref() {
+                            Some("minimal") => ProtoEffort::Minimal,
+                            Some("low") => ProtoEffort::Low,
+                            Some("medium") => ProtoEffort::Medium,
+                            Some("high") => ProtoEffort::High,
+                            _ => match preset.effort {
+                                CoreEffort::Minimal => ProtoEffort::Minimal,
+                                CoreEffort::Low => ProtoEffort::Low,
+                                CoreEffort::Medium => ProtoEffort::Medium,
+                                CoreEffort::High => ProtoEffort::High,
+                            },
+                        };
+                        token_to_match = Some((idx, part.clone(), model_slug.clone(), eff));
+                    }
+                }
+            }
+            if let Some((idx, token, model, effort)) = token_to_match {
+                // Remove only this token instance and rebuild text.
+                let mut rebuilt: Vec<String> = Vec::with_capacity(parts.len().saturating_sub(1));
+                for (i, p) in parts.into_iter().enumerate() {
+                    if i == idx && p == token {
+                        continue;
+                    }
+                    rebuilt.push(p);
+                }
+                effective_text = rebuilt.join(" ");
+                one_turn_model = Some((model, effort, token));
+            }
+        }
+
+        if !effective_text.is_empty() {
+            items.push(InputItem::Text {
+                text: effective_text.clone(),
+            });
         }
 
         for path in image_paths {
@@ -975,24 +1038,58 @@ impl ChatWidget {
             return;
         }
 
-        self.codex_op_tx
-            .send(Op::UserInput { items })
-            .unwrap_or_else(|e| {
+        // If a one-turn model override was detected, send as UserTurn so it applies for the full task.
+        if let Some((model, effort, _token)) = one_turn_model.clone() {
+            let op = Op::UserTurn {
+                items,
+                cwd: self.config.cwd.clone(),
+                approval_policy: self.config.approval_policy,
+                sandbox_policy: self.config.sandbox_policy.clone(),
+                model: model.clone(),
+                effort,
+                summary: self.config.model_reasoning_summary,
+            };
+            self.codex_op_tx.send(op).unwrap_or_else(|e| {
                 tracing::error!("failed to send message: {e}");
             });
+            // Insert a small banner indicating the one-turn override.
+            use ratatui::style::Stylize;
+            use ratatui::text::Line;
+            let effort_str = match effort {
+                codex_protocol::config_types::ReasoningEffort::Minimal => "minimal",
+                codex_protocol::config_types::ReasoningEffort::Low => "low",
+                codex_protocol::config_types::ReasoningEffort::Medium => "medium",
+                codex_protocol::config_types::ReasoningEffort::High => "high",
+            };
+            let label = format!("{model}-{effort_str}");
+            let lines = vec![Line::from(vec![
+                "Using ".dim(),
+                label.magenta().bold().into(),
+                " for this turn".dim(),
+            ])];
+            self.add_to_history(history_cell::new_user_approval_decision(lines));
+        } else {
+            self.codex_op_tx
+                .send(Op::UserInput { items })
+                .unwrap_or_else(|e| {
+                    tracing::error!("failed to send message: {e}");
+                });
+        }
 
         // Persist the text to cross-session message history.
-        if !text.is_empty() {
+        if !effective_text.is_empty() {
             self.codex_op_tx
-                .send(Op::AddToHistory { text: text.clone() })
+                .send(Op::AddToHistory {
+                    text: effective_text.clone(),
+                })
                 .unwrap_or_else(|e| {
                     tracing::error!("failed to send AddHistory op: {e}");
                 });
         }
 
         // Only show the text portion in conversation history.
-        if !text.is_empty() {
-            self.add_to_history(history_cell::new_user_prompt(text.clone()));
+        if !effective_text.is_empty() {
+            self.add_to_history(history_cell::new_user_prompt(effective_text.clone()));
         }
     }
 
