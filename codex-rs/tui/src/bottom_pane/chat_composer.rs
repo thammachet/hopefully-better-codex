@@ -11,7 +11,6 @@ use ratatui::layout::Rect;
 use ratatui::style::Color;
 use ratatui::style::Modifier;
 use ratatui::style::Style;
-use ratatui::style::Styled;
 use ratatui::style::Stylize;
 use ratatui::text::Line;
 use ratatui::text::Span;
@@ -25,6 +24,7 @@ use super::chat_composer_history::ChatComposerHistory;
 use super::command_popup::CommandItem;
 use super::command_popup::CommandPopup;
 use super::file_search_popup::FileSearchPopup;
+use super::model_search_popup::ModelSearchPopup;
 use super::paste_burst::CharDecision;
 use super::paste_burst::PasteBurst;
 use crate::bottom_pane::paste_burst::FlushResult;
@@ -103,6 +103,7 @@ enum ActivePopup {
     None,
     Command(CommandPopup),
     File(FileSearchPopup),
+    Model(ModelSearchPopup),
 }
 
 impl ChatComposer {
@@ -147,6 +148,7 @@ impl ChatComposer {
                 ActivePopup::None => 1u16,
                 ActivePopup::Command(c) => c.calculate_required_height(),
                 ActivePopup::File(c) => c.calculate_required_height(),
+                ActivePopup::Model(c) => c.calculate_required_height(),
             }
     }
 
@@ -154,6 +156,7 @@ impl ChatComposer {
         let popup_height = match &self.active_popup {
             ActivePopup::Command(popup) => popup.calculate_required_height(),
             ActivePopup::File(popup) => popup.calculate_required_height(),
+            ActivePopup::Model(popup) => popup.calculate_required_height(),
             ActivePopup::None => 1,
         };
         let [textarea_rect, _] =
@@ -223,7 +226,7 @@ impl ChatComposer {
         // Explicit paste events should not trigger Enter suppression.
         self.paste_burst.clear_after_explicit_paste();
         // Keep popup sync consistent with key handling: prefer slash popup; only
-        // sync file popup when slash popup is NOT active.
+        // sync @-popup (model or file) when slash popup is NOT active.
         self.sync_command_popup();
         if matches!(self.active_popup, ActivePopup::Command(_)) {
             self.dismissed_file_popup_token = None;
@@ -302,9 +305,6 @@ impl ChatComposer {
     }
 
     /// Return the configured window for double‑Esc clear and hint timeout.
-    pub(crate) fn esc_clear_window() -> Duration {
-        ESC_CLEAR_WINDOW
-    }
 
     /// Integrate results from an asynchronous file search.
     pub(crate) fn on_file_search_result(&mut self, query: String, matches: Vec<FileMatch>) {
@@ -339,6 +339,7 @@ impl ChatComposer {
         let result = match &mut self.active_popup {
             ActivePopup::Command(_) => self.handle_key_event_with_slash_popup(key_event),
             ActivePopup::File(_) => self.handle_key_event_with_file_popup(key_event),
+            ActivePopup::Model(_) => self.handle_key_event_with_model_popup(key_event),
             ActivePopup::None => self.handle_key_event_without_popup(key_event),
         };
 
@@ -578,6 +579,55 @@ impl ChatComposer {
                     self.insert_selected_path(&sel_path);
                 }
                 // No selection: treat Enter as closing the popup/session.
+                self.active_popup = ActivePopup::None;
+                (InputResult::None, true)
+            }
+            input => self.handle_input_basic(input),
+        }
+    }
+
+    /// Handle key events when model search popup is visible.
+    fn handle_key_event_with_model_popup(&mut self, key_event: KeyEvent) -> (InputResult, bool) {
+        let ActivePopup::Model(popup) = &mut self.active_popup else {
+            unreachable!();
+        };
+
+        match key_event {
+            KeyEvent {
+                code: KeyCode::Up, ..
+            } => {
+                popup.move_up();
+                (InputResult::None, true)
+            }
+            KeyEvent {
+                code: KeyCode::Down,
+                ..
+            } => {
+                popup.move_down();
+                (InputResult::None, true)
+            }
+            KeyEvent {
+                code: KeyCode::Esc, ..
+            } => {
+                // Hide popup without modifying text, remember token to avoid immediate reopen.
+                if let Some(tok) = Self::current_at_token(&self.textarea) {
+                    self.dismissed_file_popup_token = Some(tok.to_string());
+                }
+                self.active_popup = ActivePopup::None;
+                (InputResult::None, true)
+            }
+            KeyEvent {
+                code: KeyCode::Tab, ..
+            }
+            | KeyEvent {
+                code: KeyCode::Enter,
+                modifiers: KeyModifiers::NONE,
+                ..
+            } => {
+                if let Some(sel) = popup.selected_display_string() {
+                    // Insert the selected @model token (popup provides with '@' prefix)
+                    self.insert_selected_path(&sel);
+                }
                 self.active_popup = ActivePopup::None;
                 (InputResult::None, true)
             }
@@ -1208,7 +1258,8 @@ impl ChatComposer {
         }
     }
 
-    /// Synchronize `self.file_search_popup` with the current text in the textarea.
+    /// Synchronize the @-token popup with the current text in the textarea.
+    /// Chooses between model-selector and file-search heuristically.
     /// Note this is only called when self.active_popup is NOT Command.
     fn sync_file_search_popup(&mut self) {
         // Determine if there is an @token underneath the cursor.
@@ -1226,27 +1277,42 @@ impl ChatComposer {
             return;
         }
 
-        if !query.is_empty() {
-            self.app_event_tx
-                .send(AppEvent::StartFileSearch(query.clone()));
-        }
+        // Heuristic: if token looks file-like (contains '/', '\\', or '.') use file search;
+        // otherwise, if it has at least 1 char and matches known model presets by prefix, show model selector.
+        let looks_like_file = query.contains('/') || query.contains('\\') || query.contains('.');
+        let has_model_matches = !looks_like_file && ModelSearchPopup::has_matches(&query);
 
-        match &mut self.active_popup {
-            ActivePopup::File(popup) => {
-                if query.is_empty() {
-                    popup.set_empty_prompt();
-                } else {
+        if has_model_matches {
+            match &mut self.active_popup {
+                ActivePopup::Model(popup) => popup.set_query(&query),
+                _ => {
+                    let mut popup = ModelSearchPopup::new();
                     popup.set_query(&query);
+                    self.active_popup = ActivePopup::Model(popup);
                 }
             }
-            _ => {
-                let mut popup = FileSearchPopup::new();
-                if query.is_empty() {
-                    popup.set_empty_prompt();
-                } else {
-                    popup.set_query(&query);
+        } else {
+            if !query.is_empty() {
+                self.app_event_tx
+                    .send(AppEvent::StartFileSearch(query.clone()));
+            }
+            match &mut self.active_popup {
+                ActivePopup::File(popup) => {
+                    if query.is_empty() {
+                        popup.set_empty_prompt();
+                    } else {
+                        popup.set_query(&query);
+                    }
                 }
-                self.active_popup = ActivePopup::File(popup);
+                _ => {
+                    let mut popup = FileSearchPopup::new();
+                    if query.is_empty() {
+                        popup.set_empty_prompt();
+                    } else {
+                        popup.set_query(&query);
+                    }
+                    self.active_popup = ActivePopup::File(popup);
+                }
             }
         }
 
@@ -1268,6 +1334,7 @@ impl WidgetRef for ChatComposer {
         let popup_height = match &self.active_popup {
             ActivePopup::Command(popup) => popup.calculate_required_height(),
             ActivePopup::File(popup) => popup.calculate_required_height(),
+            ActivePopup::Model(popup) => popup.calculate_required_height(),
             ActivePopup::None => 1,
         };
         let [textarea_rect, popup_rect] =
@@ -1277,6 +1344,9 @@ impl WidgetRef for ChatComposer {
                 popup.render_ref(popup_rect, buf);
             }
             ActivePopup::File(popup) => {
+                popup.render_ref(popup_rect, buf);
+            }
+            ActivePopup::Model(popup) => {
                 popup.render_ref(popup_rect, buf);
             }
             ActivePopup::None => {
