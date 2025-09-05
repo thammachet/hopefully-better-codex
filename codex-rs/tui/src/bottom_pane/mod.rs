@@ -6,12 +6,15 @@ use crate::tui::FrameRequester;
 use crate::user_approval_widget::ApprovalRequest;
 use bottom_pane_view::BottomPaneView;
 use codex_core::protocol::TokenUsageInfo;
+use codex_core::protocol_config_types::ReasoningEffort;
 use codex_file_search::FileMatch;
 use crossterm::event::KeyEvent;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Constraint;
 use ratatui::layout::Layout;
 use ratatui::layout::Rect;
+use ratatui::style::Stylize;
+use ratatui::text::Line;
 use ratatui::widgets::WidgetRef;
 use std::time::Duration;
 
@@ -66,6 +69,11 @@ pub(crate) struct BottomPane {
     status: Option<StatusIndicatorWidget>,
     /// Queued user messages to show under the status indicator.
     queued_user_messages: Vec<String>,
+
+    // Always-visible model/effort indicator and optional per-turn override label.
+    current_model: String,
+    current_effort: ReasoningEffort,
+    turn_override_label: Option<String>,
 }
 
 pub(crate) struct BottomPaneParams {
@@ -98,6 +106,9 @@ impl BottomPane {
             status: None,
             queued_user_messages: Vec::new(),
             esc_backtrack_hint: false,
+            current_model: String::new(),
+            current_effort: ReasoningEffort::Medium,
+            turn_override_label: None,
         }
     }
 
@@ -119,7 +130,7 @@ impl BottomPane {
             .saturating_add(top_margin)
     }
 
-    fn layout(&self, area: Rect) -> [Rect; 2] {
+    fn layout(&self, area: Rect) -> [Rect; 3] {
         // At small heights, bottom pane takes the entire height.
         let (top_margin, bottom_margin) = if area.height <= BottomPane::BOTTOM_PAD_LINES + 1 {
             (0, 0)
@@ -134,13 +145,29 @@ impl BottomPane {
             height: area.height - top_margin - bottom_margin,
         };
         match self.active_view.as_ref() {
-            Some(_) => [Rect::ZERO, area],
+            Some(_) => [Rect::ZERO, Rect::ZERO, area],
             None => {
                 let status_height = self
                     .status
                     .as_ref()
                     .map_or(0, |status| status.desired_height(area.width));
-                Layout::vertical([Constraint::Max(status_height), Constraint::Min(1)]).areas(area)
+                // Prefer status+composer at tiny heights; hide model line if needed.
+                if status_height > 0 && area.height <= 2 {
+                    let chunks: [Rect; 2] = Layout::vertical([
+                        Constraint::Max(status_height), // status while running
+                        Constraint::Min(1),             // composer
+                    ])
+                    .areas(area);
+                    [Rect::ZERO, chunks[0], chunks[1]]
+                } else {
+                    // Reserve a single row for the model indicator when space allows.
+                    Layout::vertical([
+                        Constraint::Max(1),             // model indicator
+                        Constraint::Max(status_height), // status while running
+                        Constraint::Min(1),             // composer
+                    ])
+                    .areas(area)
+                }
             }
         }
     }
@@ -153,7 +180,7 @@ impl BottomPane {
         if self.active_view.is_some() {
             None
         } else {
-            let [_, content] = self.layout(area);
+            let [_, _, content] = self.layout(area);
             self.composer.cursor_pos(content)
         }
     }
@@ -324,6 +351,28 @@ impl BottomPane {
             // Hide the status indicator when a task completes, but keep other modal views.
             self.status = None;
         }
+    }
+
+    /// Update the current model slug shown in the indicator.
+    pub(crate) fn set_current_model(&mut self, model: String) {
+        if self.current_model != model {
+            self.current_model = model;
+            self.request_redraw();
+        }
+    }
+
+    /// Update the current reasoning effort shown in the indicator.
+    pub(crate) fn set_current_effort(&mut self, effort: ReasoningEffort) {
+        if self.current_effort != effort {
+            self.current_effort = effort;
+            self.request_redraw();
+        }
+    }
+
+    /// Temporarily display a one‑turn override label (e.g. "gpt-5-high").
+    pub(crate) fn set_turn_model_override(&mut self, label: Option<String>) {
+        self.turn_override_label = label;
+        self.request_redraw();
     }
 
     /// Show a generic list selection view with the provided items.
@@ -517,13 +566,49 @@ impl BottomPane {
 
 impl WidgetRef for &BottomPane {
     fn render_ref(&self, area: Rect, buf: &mut Buffer) {
-        let [status_area, content] = self.layout(area);
+        let [model_area, status_area, content] = self.layout(area);
 
         // When a modal view is active, it owns the whole content area.
         if let Some(view) = &self.active_view {
             view.render(content, buf);
         } else {
             // No active modal:
+            // Render the always‑visible model indicator when there is space.
+            if model_area.height > 0 && model_area.width > 0 {
+                if let Some(label) = &self.turn_override_label {
+                    // One‑turn override banner
+                    let line: Line = vec![
+                        " ".into(),
+                        "Using ".dim(),
+                        label.as_str().magenta().bold(),
+                        " for this turn".dim(),
+                    ]
+                    .into();
+                    let para = ratatui::widgets::Paragraph::new(line);
+                    para.render_ref(model_area, buf);
+                } else if !self.current_model.is_empty() {
+                    // Default always-visible model/effort display
+                    let effort = match self.current_effort {
+                        ReasoningEffort::Minimal => "Minimal",
+                        ReasoningEffort::Low => "Low",
+                        ReasoningEffort::Medium => "Medium",
+                        ReasoningEffort::High => "High",
+                    };
+                    let line: Line = vec![
+                        " ".into(),
+                        "Model ".cyan(),
+                        self.current_model.as_str().cyan().bold(),
+                        " ".into(),
+                        "•".dim(),
+                        " ".into(),
+                        "Effort ".cyan(),
+                        effort.cyan().bold(),
+                    ]
+                    .into();
+                    let para = ratatui::widgets::Paragraph::new(line);
+                    para.render_ref(model_area, buf);
+                }
+            }
             // If a status indicator is active, render it above the composer.
             if let Some(status) = &self.status {
                 status.render_ref(status_area, buf);
@@ -640,14 +725,18 @@ mod tests {
         let area = Rect::new(0, 0, 40, 6);
         let mut buf = Buffer::empty(area);
         (&pane).render_ref(area, &mut buf);
-        let mut row1 = String::new();
-        for x in 0..area.width {
-            row1.push(buf[(x, 1)].symbol().chars().next().unwrap_or(' '));
+        let mut found_working = false;
+        for y in 0..area.height.min(3) {
+            let mut row = String::new();
+            for x in 0..area.width {
+                row.push(buf[(x, y)].symbol().chars().next().unwrap_or(' '));
+            }
+            if row.contains("Working") {
+                found_working = true;
+                break;
+            }
         }
-        assert!(
-            row1.contains("Working"),
-            "expected Working header after denial on row 1: {row1:?}"
-        );
+        assert!(found_working, "expected Working header to be visible");
 
         // Composer placeholder should be visible somewhere below.
         let mut found_composer = false;
@@ -691,14 +780,18 @@ mod tests {
         let mut buf = Buffer::empty(area);
         (&pane).render_ref(area, &mut buf);
 
-        let mut row0 = String::new();
-        for x in 0..area.width {
-            row0.push(buf[(x, 1)].symbol().chars().next().unwrap_or(' '));
+        let mut saw_working = false;
+        for y in 0..area.height.min(3) {
+            let mut row = String::new();
+            for x in 0..area.width {
+                row.push(buf[(x, y)].symbol().chars().next().unwrap_or(' '));
+            }
+            if row.contains("Working") {
+                saw_working = true;
+                break;
+            }
         }
-        assert!(
-            row0.contains("Working"),
-            "expected Working header: {row0:?}"
-        );
+        assert!(saw_working, "expected Working header to be visible");
     }
 
     #[test]
@@ -727,18 +820,21 @@ mod tests {
         let mut buf = Buffer::empty(area);
         (&pane).render_ref(area, &mut buf);
 
-        // Row 1 contains the status header (row 0 is the spacer)
-        let mut top = String::new();
-        for x in 0..area.width {
-            top.push(buf[(x, 1)].symbol().chars().next().unwrap_or(' '));
+        // One of the top rows should contain the status header.
+        let mut status_visible = false;
+        for y in 0..area.height.min(3) {
+            let mut row = String::new();
+            for x in 0..area.width {
+                row.push(buf[(x, y)].symbol().chars().next().unwrap_or(' '));
+            }
+            if row.contains("Working") {
+                status_visible = true;
+                break;
+            }
         }
         assert!(
-            top.trim_start().starts_with("Working"),
-            "expected top row to start with 'Working': {top:?}"
-        );
-        assert!(
-            top.contains("Working"),
-            "expected Working header on top row: {top:?}"
+            status_visible,
+            "expected Working header to be visible near top"
         );
 
         // Last row should be blank padding; the row above should generally contain composer content.

@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Codex Session • Modern</title>
+    <link rel="stylesheet" href="/assets/index.css" />
+    <link rel="stylesheet" href="/assets/session.css" />
+  </head>
+  <body>
+    <header class="app-header" role="banner">
+      <div class="brand">
+        <a class="home" href="/" aria-label="Codex Home">
+          <span class="logo">▮</span>
+          <span class="name">Codex</span>
+        </a>
+      </div>
+      <nav class="nav" aria-label="Primary"></nav>
+
+      <div class="status" aria-live="polite">
+        <span id="ws" class="pill pill-muted" title="WebSocket status">WS: —</span>
+        <span id="tokens" class="pill pill-muted" title="Token usage">Tokens: —</span>
+        <span id="model-pill" class="pill pill-muted" title="Model">Model: —</span>
+        <span id="approval-pill" class="pill pill-muted" title="Approval">Approval: —</span>
+        <span id="sandbox-pill" class="pill pill-muted" title="Sandbox">Sandbox: —</span>
+        <span id="cwd-pill" class="pill pill-muted" title="CWD">CWD: —</span>
+      </div>
+
+      <div class="actions">
+        <button id="interrupt" class="btn ghost" aria-label="Interrupt">Interrupt</button>
+        <button id="export" class="btn ghost" aria-label="Export JSONL">Export</button>
+        <button id="theme" class="btn ghost" aria-label="Toggle theme">Theme</button>
+      </div>
+    </header>
+
+    <main class="container" role="main">
+      <!-- Collapsible turn context / controls -->
+      <div class="card controls-card" id="ctx-card">
+        <div class="controls">
+          <div class="field">
+            <label for="ctx-model">Model</label>
+            <select id="ctx-model">
+              <option value="gpt-5">gpt-5</option>
+              <option value="o3">o3</option>
+              <option value="gpt-4o">gpt-4o</option>
+              <option value="custom">Custom…</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="ctx-model-custom">Custom Model</label>
+            <input id="ctx-model-custom" type="text" placeholder="custom model slug" class="hidden" />
+          </div>
+          <div class="field">
+            <label for="effort">Effort</label>
+            <select id="effort">
+              <option value="minimal">minimal</option>
+              <option value="low">low</option>
+              <option value="medium">medium</option>
+              <option value="high">high</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="ctx-approval">Approval</label>
+            <select id="ctx-approval">
+              <option>on-request</option>
+              <option>on-failure</option>
+              <option>untrusted</option>
+              <option>never</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="ctx-sandbox">Sandbox</label>
+            <select id="ctx-sandbox">
+              <option value="workspace-write">workspace-write</option>
+              <option value="read-only">read-only</option>
+              <option value="danger-full-access">danger-full-access</option>
+            </select>
+          </div>
+          <div class="field field-wide">
+            <label for="ctx-cwd">CWD</label>
+            <input id="ctx-cwd" type="text" list="cwd-list" placeholder="/path/to/workspace" />
+            <datalist id="cwd-list"></datalist>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid2">
+        <!-- Chat / Feed -->
+        <div class="card feed-card">
+          <div class="card-head">
+            <h3 id="title" class="meta">Session</h3>
+            <div class="muted hotkeys-hint">Press <kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>K</kbd> for commands</div>
+          </div>
+
+          <div id="feed" class="feed" aria-live="polite"></div>
+
+          <!-- Typing indicator -->
+          <div id="typing" class="typing" aria-live="polite" aria-hidden="true">
+            <span></span><span></span><span></span>
+          </div>
+
+          <div id="new-ind" class="new-indicator">
+            <button class="btn ghost" id="scroll-new">New activity • Scroll</button>
+          </div>
+        </div>
+
+        <!-- Composer -->
+        <div class="card composer">
+          <div class="toolbar">
+            <div class="left">
+              <label class="btn ghost file-btn" for="attach">Attach</label>
+              <input id="attach" type="file" multiple hidden />
+              <div id="attachments" class="attachments" aria-live="polite"></div>
+            </div>
+            <div class="right">
+              <label class="switch">
+                <input id="enter-to-send" type="checkbox" />
+                <span>Enter to send</span>
+              </label>
+              <span class="muted hotkey">Press <kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>Enter</kbd> to send</span>
+              <span id="char-count" class="muted">0</span>
+              <button id="send" class="btn primary">Send</button>
+            </div>
+          </div>
+
+          <textarea
+            id="chat"
+            rows="3"
+            placeholder="Type your prompt…  (Use / to open the palette, Shift+Enter for a new line)"
+          ></textarea>
+        </div>
+
+        <!-- Plan panel -->
+        <div class="card">
+          <h3>Plan</h3>
+          <div id="plan" class="plan"></div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Approval Modal -->
+    <div id="approval-modal" class="modal" aria-hidden="true" role="dialog" aria-modal="true" aria-label="Approval">
+      <div class="modal-card approval-card">
+        <div class="approval-head">
+          <div id="approval-title">Approval</div>
+          <button id="approval-close" class="btn ghost">Close</button>
+        </div>
+        <div class="approval-body" id="approval-body"></div>
+        <div class="approval-actions">
+          <button id="approve" class="btn">Approve</button>
+          <button id="approve-session" class="btn">Approve for Session</button>
+          <button id="deny" class="btn ghost">Deny</button>
+          <button id="abort" class="btn ghost">Abort</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Command Palette -->
+    <div id="palette-modal" class="modal" aria-hidden="true" role="dialog" aria-modal="true" aria-label="Command palette">
+      <div class="modal-card">
+        <input id="palette-input" class="palette-input" placeholder="Type a command…" aria-label="Command input" />
+        <div id="palette-list" class="palette-list" role="listbox" aria-label="Commands"></div>
+      </div>
+    </div>
+
+    <script type="module" src="/assets/session.js"></script>
+  </body>
+</html>

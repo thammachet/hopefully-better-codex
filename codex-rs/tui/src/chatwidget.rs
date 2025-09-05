@@ -253,6 +253,7 @@ impl ChatWidget {
         }
         // Mark task stopped and request redraw now that all content is in history.
         self.bottom_pane.set_task_running(false);
+        self.bottom_pane.set_turn_model_override(None);
         self.running_commands.clear();
         self.request_redraw();
 
@@ -273,6 +274,7 @@ impl ChatWidget {
         self.add_to_history(history_cell::new_error_event(message));
         // Reset running state and clear streaming buffers.
         self.bottom_pane.set_task_running(false);
+        self.bottom_pane.set_turn_model_override(None);
         self.running_commands.clear();
         self.stream.clear_all();
     }
@@ -291,6 +293,7 @@ impl ChatWidget {
     fn on_interrupted_turn(&mut self) {
         // Finalize, log a gentle prompt, and clear running state.
         self.finalize_turn_with_error_message("Tell the model what to do differently".to_owned());
+        self.bottom_pane.set_turn_model_override(None);
 
         // If any messages were queued during the task, restore them into the composer.
         if !self.queued_user_messages.is_empty() {
@@ -666,6 +669,7 @@ impl ChatWidget {
             show_welcome_banner: true,
             suppress_session_configured_redraw: false,
         }
+        .init_model_indicator()
     }
 
     /// Create a ChatWidget attached to an existing conversation (e.g., a fork).
@@ -718,6 +722,16 @@ impl ChatWidget {
             show_welcome_banner: false,
             suppress_session_configured_redraw: true,
         }
+        .init_model_indicator()
+    }
+
+    fn init_model_indicator(mut self) -> Self {
+        // Seed the always-visible model indicator from current config.
+        self.bottom_pane
+            .set_current_model(self.config.model.clone());
+        self.bottom_pane
+            .set_current_effort(self.config.model_reasoning_effort);
+        self
     }
 
     pub fn desired_height(&self, width: u16) -> u16 {
@@ -1062,9 +1076,12 @@ impl ChatWidget {
                 codex_protocol::config_types::ReasoningEffort::High => "high",
             };
             let label = format!("{model}-{effort_str}");
+            // Reflect the one-turn override in the always-visible indicator during this turn.
+            self.bottom_pane
+                .set_turn_model_override(Some(label.clone()));
             let lines = vec![Line::from(vec![
                 "Using ".dim(),
-                label.magenta().bold().into(),
+                label.magenta().bold(),
                 " for this turn".dim(),
             ])];
             self.add_to_history(history_cell::new_user_approval_decision(lines));
@@ -1422,11 +1439,14 @@ impl ChatWidget {
     /// Set the reasoning effort in the widget's config copy.
     pub(crate) fn set_reasoning_effort(&mut self, effort: ReasoningEffortConfig) {
         self.config.model_reasoning_effort = effort;
+        self.bottom_pane.set_current_effort(effort);
     }
 
     /// Set the model in the widget's config copy.
     pub(crate) fn set_model(&mut self, model: String) {
         self.config.model = model;
+        self.bottom_pane
+            .set_current_model(self.config.model.clone());
     }
 
     /// Set the default exec timeout in the widget's config copy.

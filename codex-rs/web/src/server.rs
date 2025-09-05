@@ -14,7 +14,13 @@ use tracing::debug;
 use crate::AppState;
 use crate::session::ClientMsg;
 #[cfg(unix)]
-use portable_pty::{CommandBuilder, NativePtySystem, PtySize, PtySystem};
+use portable_pty::CommandBuilder;
+#[cfg(unix)]
+use portable_pty::NativePtySystem;
+#[cfg(unix)]
+use portable_pty::PtySize;
+#[cfg(unix)]
+use portable_pty::PtySystem;
 
 pub async fn ws_events(
     State(app): State<Arc<AppState>>,
@@ -150,7 +156,9 @@ async fn handle_pty_socket(mut socket: WebSocket) {
     });
     let ws_send_task = tokio::spawn(async move {
         while let Some(s) = rx.recv().await {
-            if sender.send(Message::Text(s)).await.is_err() { break; }
+            if sender.send(Message::Text(s)).await.is_err() {
+                break;
+            }
         }
     });
 

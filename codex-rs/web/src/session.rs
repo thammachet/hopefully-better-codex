@@ -21,9 +21,15 @@ pub enum ClientMsg {
     },
     OverrideTurnContext {
         #[serde(skip_serializing_if = "Option::is_none")]
+        cwd: Option<std::path::PathBuf>,
+        #[serde(skip_serializing_if = "Option::is_none")]
         model: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         approval_policy: Option<codex_core::protocol::AskForApproval>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        effort: Option<codex_core::protocol_config_types::ReasoningEffort>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        sandbox_mode: Option<codex_protocol::config_types::SandboxMode>,
     },
 }
 

@@ -96,8 +96,8 @@ struct DebugArgs {
 
 #[derive(Debug, clap::Parser)]
 struct WebCommand {
-    /// Host interface to bind (default: 127.0.0.1)
-    #[arg(long, default_value = "127.0.0.1")]
+    /// Host interface to bind (default: 0.0.0.0)
+    #[arg(long, default_value = "0.0.0.0")]
     host: String,
 
     /// Port to listen on (default: 7878)
