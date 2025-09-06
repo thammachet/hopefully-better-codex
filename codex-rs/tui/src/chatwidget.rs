@@ -1001,7 +1001,9 @@ impl ChatWidget {
             for (idx, part) in parts.iter().enumerate() {
                 if let Some(rest) = part.strip_prefix('@') {
                     // Accept forms: @model or @model-{effort}
-                    let (model_slug, effort_opt) = match rest.split_once('-') {
+                    // Use the LAST hyphen to separate an optional effort suffix so
+                    // hyphenated model slugs like "gpt-5" are parsed correctly.
+                    let (model_slug, effort_opt) = match rest.rsplit_once('-') {
                         Some((m, eff)) => (m.to_string(), Some(eff.to_ascii_lowercase())),
                         None => (rest.to_string(), None),
                     };

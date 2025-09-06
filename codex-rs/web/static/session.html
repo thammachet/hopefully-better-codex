@@ -93,7 +93,17 @@
         <div class="card composer">
           <h3>Chat</h3>
           <textarea id="chat" rows="1" placeholder="Type your prompt..."></textarea>
-          <div class="right"><button id="send" class="btn primary">Send</button></div>
+          <div class="right">
+            <button id="queue-add" class="btn ghost" title="Add to queue (Ctrl/Cmd+Enter)">Queue</button>
+            <button id="send" class="btn primary" title="Send (Enter)">Send</button>
+          </div>
+          <div id="queue" class="queue hidden" aria-label="Queued prompts">
+            <div class="queue-head">
+              <div class="queue-title">Next up</div>
+              <div class="queue-count pill pill-muted" id="queue-count">0</div>
+            </div>
+            <div id="queue-list" class="queue-list"></div>
+          </div>
         </div>
         <div class="card plan-card">
           <h3>Plan</h3>

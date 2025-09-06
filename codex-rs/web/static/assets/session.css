@@ -47,16 +47,52 @@
 
 /* Tool/activity blocks (exec, patch, MCP, search) */
 .tool{ border:1px solid var(--line); border-radius:10px; padding:8px 10px; margin:8px 0; background:rgba(255,255,255,0.02); animation:fadeIn var(--fast) ease both }
-.tool-head{ display:flex; align-items:center; justify-content:space-between; gap:8px }
-.tool-left{ display:flex; flex-direction:column }
-.tool-title{ font-weight:600 }
-.tool-sub{ font-size:12px; color:var(--muted) }
+.tool-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; cursor:pointer; user-select:none; font-size:13px }
+.tool-head:focus{ outline:2px solid var(--accent); outline-offset:2px }
+.tool-left{ display:flex; align-items:center; gap:8px; min-width:0; flex-wrap:wrap }
+.tool-icn{ width:16px; height:16px; display:inline-flex; align-items:center; justify-content:center; opacity:.9 }
+.tool-title{ font-weight:600; white-space:normal; overflow-wrap:anywhere }
+.tool-sub{ font-size:11px; color:var(--muted); white-space:normal; overflow-wrap:anywhere }
+.tool-sep{ color:var(--muted) }
 .tool-status{ display:flex; align-items:center; gap:8px }
 .tool-body{ margin-top:6px }
-.tool .pre{ background:#080b10; border:1px solid var(--line); border-radius:8px; padding:8px; max-height:220px; overflow:auto; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; white-space:pre-wrap; word-break:break-word }
+.tool .pre{ background:#080b10; color:#fff; border:1px solid var(--line); border-radius:8px; padding:8px; max-height:200px; overflow:auto; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; white-space:pre-wrap; word-break:break-word; font-size:12px }
+.tool .pre code{ color:#fff }
 .tool.ok .pill{ background:#1a2a1f; color:#9be7a0; border-color:#24422a }
 .tool.err .pill{ background:#2a1f1f; color:#ffb3b8; border-color:#3c2a2a }
 .spin{ width:12px; height:12px; border-radius:50%; border:2px solid rgba(255,255,255,.28); border-top-color:#fff; animation:spin .8s linear infinite; display:inline-block }
+
+/* Collapsed mode */
+.tool.collapsed .tool-body{ display:none }
+.tool-preview{ display:none; font-size:11px; color:var(--muted); white-space:normal; overflow-wrap:anywhere }
+.tool.collapsed .tool-preview{ display:inline }
+
+/* Status dot indicator */
+.dot{ width:10px; height:10px; border-radius:50%; background:var(--muted); display:inline-block }
+.dot-run{ background:var(--accent) }
+.dot-ok{ background:#2ea043 }
+.dot-err{ background:#ff4d5f }
+/* Hide text pill in compact mode; keep for a11y if needed */
+.tool-status .pill{ display:none }
+
+/* Patch summary list */
+.patch-list{ display:flex; flex-direction:column; gap:6px; margin-top:6px }
+.patch-file{ border:1px solid var(--line); border-radius:8px; padding:6px 8px; background:rgba(255,255,255,0.02) }
+.patch-file-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; cursor:pointer; user-select:none }
+.patch-file-name{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; font-size:12px }
+.patch-chips{ display:flex; align-items:center; gap:6px }
+.chip{ font-size:11px; padding:1px 6px; border-radius:999px; border:1px solid var(--line) }
+.chip-add{ background:#1a2a1f; color:#9be7a0; border-color:#24422a }
+.chip-rem{ background:#2a1f1f; color:#ffb3b8; border-color:#3c2a2a }
+.patch-diff{ display:none; margin-top:6px }
+.patch-diff pre{ margin:0; background:#080b10; color:#fff }
+.patch-diff code{ color:#fff }
+.patch-file.open .patch-diff{ display:block }
+
+/* Group container */
+.tool-group{ display:flex; flex-direction:column; gap:6px; margin:6px 0 2px }
+.tool-group-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:12px; color:var(--muted) }
+.tool-group-title{ font-weight:600 }
 @keyframes spin{ to{ transform:rotate(360deg) } }
 @keyframes fadeIn{ from{ opacity:0; transform:translateY(2px) } to{ opacity:1; transform:translateY(0) } }
 
@@ -70,6 +106,8 @@
 .md ul{ margin:4px 0 4px 16px }
 .new-indicator{ bottom:6px }
 .card h3{ margin:0 0 6px }
+/* composer actions row */
+.composer .right{ display:flex; gap:8px; justify-content:flex-end; margin-top:6px }
 
 /* Plan visuals: compact items with status accent */
 .plan{ display:flex; flex-direction:column; gap:4px }
