@@ -321,7 +321,27 @@ function initSession(){
         else if(t==='stream_error'){ addSystem(`stream error: ${e.msg.message||''}`); }
         else if(t==='error'){ addSystem(`error: ${e.msg.message||''}`); }
         else if(t==='session_configured'){
-          setPill('#model-pill', `Model: ${e.msg.model}`);
+          try{
+            // Model
+            const model = e.msg.model || '';
+            const modelSel = qs('#ctx-model'); const modelCustom = qs('#ctx-model-custom');
+            if(modelSel){
+              const opt = [...(modelSel.options||[])].find(o=>o.value===model);
+              if(opt){ modelSel.value = model; modelCustom?.classList.add('hidden'); }
+              else { modelSel.value = 'custom'; if(modelCustom){ modelCustom.classList.remove('hidden'); modelCustom.value = model; } }
+            }
+            setPill('#model-pill', `Model: ${model||'—'}`);
+            // Approval
+            if(e.msg.approval_policy){ const apSel = qs('#ctx-approval'); if(apSel){ apSel.value = e.msg.approval_policy; } setPill('#approval-pill', `Approval: ${e.msg.approval_policy}`); }
+            // Sandbox
+            if(e.msg.sandbox_mode){ const sbSel = qs('#ctx-sandbox'); if(sbSel){ sbSel.value = e.msg.sandbox_mode; } setPill('#sandbox-pill', `Sandbox: ${e.msg.sandbox_mode}`); }
+            // CWD
+            if(e.msg.cwd){ const cwdInput = qs('#ctx-cwd'); if(cwdInput){ cwdInput.value = e.msg.cwd; }
+              setPill('#cwd-pill', `CWD: ${e.msg.cwd}`);
+              // record in history
+              try{ const key='codex-cwd-history'; const arr=JSON.parse(localStorage.getItem(key)||'[]'); if(Array.isArray(arr)){ const list=[e.msg.cwd, ...arr.filter(p=>p!==e.msg.cwd)]; localStorage.setItem(key, JSON.stringify(list.slice(0,20))); } }catch{}
+            }
+          }catch{}
         }
         else if(t==='plan_update'){ renderPlan(e.msg); }
       }catch{}
@@ -376,6 +396,26 @@ function initSession(){
   })();
 
   // Actions
+  // New session (same CWD)
+  qs('#new-session')?.addEventListener('click', async ()=>{
+    const btn = qs('#new-session'); if(btn) { btn.disabled = true; btn.textContent = 'New…'; }
+    try{
+      let cwd = (qs('#ctx-cwd')?.value||'').trim();
+      if(!cwd){
+        const pill = qs('#cwd-pill')?.textContent||'';
+        const idx = pill.indexOf(':');
+        if(idx>=0) cwd = pill.slice(idx+1).trim();
+        if(cwd==='—') cwd = '';
+      }
+      const body = { cwd: cwd || null };
+      const r = await fetch('/api/sessions', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(body) });
+      if(!r.ok){ throw new Error(await r.text()); }
+      const j = await r.json();
+      location.href = `/session/${j.session_id}`;
+    } catch(e){ alert(`Create failed: ${e?.message||e}`); }
+    finally{ if(btn){ btn.disabled=false; btn.textContent='New'; } }
+  });
+
   qs('#interrupt')?.addEventListener('click', ()=>{ if(window._ws && _ws.readyState===1){ _ws.send(JSON.stringify({type:'interrupt'})); } });
   qs('#export')?.addEventListener('click', ()=>{ try{ const blob=new Blob([eventsLog.join('\n')],{type:'application/x-ndjson'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`codex-session-${id}.jsonl`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);}catch{ alert('Export failed'); } });
   // Copy transcript button
