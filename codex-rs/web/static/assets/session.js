@@ -168,10 +168,14 @@ function initSession(){
     head.append(whoEl, copy); wrap.append(head, contentNode); return wrap;
   }
   function makeReasoning(){ const box=document.createElement('div'); box.className='reasoning collapsed'; const head=document.createElement('div'); head.className='head'; head.innerHTML='<span>Reasoning</span>'; const toggle=document.createElement('button'); toggle.className='toggle-btn'; toggle.textContent='Show'; head.append(toggle); const body=document.createElement('div'); body.className='body'; box.append(head, body); toggle.addEventListener('click',()=>{ const c=box.classList.contains('collapsed'); box.classList.toggle('collapsed'); toggle.textContent=c?'Hide':'Show'; }); return {box, body}; }
-  function startTurn(){ const t=document.createElement('div'); t.className='turn'; feed.appendChild(t); return t; }
+  function startTurn(){ const t=document.createElement('div'); t.className='turn'; feed.appendChild(t); currentToolGroup=null; currentToolCount=0; return t; }
   function nearBottom(){ return (feed.scrollTop + feed.clientHeight) >= (feed.scrollHeight - 40); }
-  function maybeAutoScroll(){ if(nearBottom()) feed.scrollTop=feed.scrollHeight; else qs('#new-ind').style.display='flex'; }
-  qs('#scroll-new')?.addEventListener('click',()=>{ feed.scrollTop=feed.scrollHeight; qs('#new-ind').style.display='none'; });
+  const newInd = qs('#new-ind');
+  let autoScroll = true;
+  function updateAutoScrollFlag(){ autoScroll = nearBottom(); if(autoScroll && newInd) newInd.style.display='none'; }
+  function maybeAutoScroll(){ if(autoScroll){ feed.scrollTop=feed.scrollHeight; if(newInd) newInd.style.display='none'; } else { if(newInd) newInd.style.display='flex'; } }
+  feed.addEventListener('scroll', updateAutoScrollFlag, { passive:true });
+  qs('#scroll-new')?.addEventListener('click',()=>{ feed.scrollTop=feed.scrollHeight; autoScroll=true; if(newInd) newInd.style.display='none'; });
 
   let currentTurn=null; let currentAssistant=null; let currentAssistantText=''; let currentReason=null; let currentReasonText=''; let assistantHadDelta=false;
   function addUser(text){ const node=renderMarkdown(text); const wrap=makeMsg('user', node, text); currentTurn=startTurn(); currentTurn.appendChild(wrap); currentAssistant=null; currentReason=null; currentAssistantText=''; currentReasonText=''; assistantHadDelta=false; maybeAutoScroll(); }
@@ -183,32 +187,71 @@ function initSession(){
   function addSystem(text){ const node=renderMarkdown(text); const wrap=makeMsg('system', node, text); if(!currentTurn){ currentTurn=startTurn(); } currentTurn.appendChild(wrap); maybeAutoScroll(); }
 
   // Tool/activity renderer
-  const activeTools = new Map(); // call_id -> {wrap, pre, pill, status, titleEl, subEl, kind}
+  const activeTools = new Map(); // call_id -> {wrap, head, pre, pill, status, titleEl, subEl, previewEl, kind, collapsed, lineCount, lastLine, exitCode}
   function ensureTurn(){ if(!currentTurn) currentTurn=startTurn(); return currentTurn; }
+  // Grouping for tools within a turn
+  let currentToolGroup=null; let currentToolCount=0;
+  function ensureToolGroup(){
+    if(!currentTurn) ensureTurn();
+    if(currentToolGroup && currentToolGroup.parentElement===currentTurn) return currentToolGroup;
+    const group=document.createElement('div'); group.className='tool-group';
+    const head=document.createElement('div'); head.className='tool-group-head';
+    const title=document.createElement('div'); title.className='tool-group-title'; title.textContent='Tools';
+    const count=document.createElement('span'); count.className='pill pill-muted'; count.textContent='0';
+    head.append(title, count); group.append(head); currentTurn.appendChild(group);
+    head.addEventListener('click', ()=>{
+      const tools=[...group.querySelectorAll(':scope > .tool')];
+      const anyCollapsed=tools.some(t=>t.classList.contains('collapsed'));
+      tools.forEach(t=> t.classList.toggle('collapsed', !anyCollapsed));
+    });
+    currentToolGroup=group; currentToolCount=0; return group;
+  }
+  function bumpGroupCount(){ try{ currentToolCount++; const pill=currentToolGroup?.querySelector('.tool-group-head .pill'); if(pill) pill.textContent=String(currentToolCount); }catch{} }
+  function safeCreateIcon(kind){ const span=document.createElement('span'); span.className='tool-icn'; let txt='*'; if(kind==='exec') txt='>'; else if(kind==='patch') txt='+/-'; else if(kind==='search') txt='?'; else if(kind==='mcp') txt='@'; span.textContent=txt; return span; }
+  function createIcon(kind){ const span=document.createElement('span'); span.className='tool-icn'; let txt=''; if(kind==='exec') txt='›'; else if(kind==='patch') txt='±'; else if(kind==='search') txt='🔎'; else if(kind==='mcp') txt='🔌'; else txt='•'; span.textContent=txt; return span; }
+  function toggleCollapsed(obj, to){ const next=(to===undefined)?!obj.collapsed:!!to; obj.collapsed=next; obj.wrap.classList.toggle('collapsed', next); obj.head?.setAttribute('aria-expanded', String(!next)); }
+  function updateExecPreview(obj){ if(!obj) return; const count=obj.lineCount||0; const code=obj.exitCode; if(code===undefined || code===null){ obj.previewEl.textContent = count>0 ? `${count} lines…` : 'running…'; } else if(code===0){ obj.previewEl.textContent = count>0 ? `${count} lines output` : 'no output'; } else { const last=(obj.lastLine||'').trim(); obj.previewEl.textContent = last ? last : `exit ${code}`; } }
   function createTool(kind, callId, title, sub){
     const wrap=document.createElement('div'); wrap.className='tool'; wrap.setAttribute('data-kind', kind); wrap.setAttribute('data-id', callId||'');
     const head=document.createElement('div'); head.className='tool-head';
     const left=document.createElement('div'); left.className='tool-left';
+    const icn=safeCreateIcon(kind);
+    const sep2=document.createElement('span'); sep2.className='tool-sep'; sep2.textContent='|';
     const titleEl=document.createElement('div'); titleEl.className='tool-title'; titleEl.textContent=title;
+    const sep=document.createElement('span'); sep.className='tool-sep'; sep.textContent='•';
     const subEl=document.createElement('div'); subEl.className='tool-sub'; subEl.textContent=sub||'';
-    left.append(titleEl, subEl);
+    const previewEl=document.createElement('span'); previewEl.className='tool-preview'; previewEl.textContent='';
+    if(sub){ left.append(icn, titleEl, sep2, subEl, previewEl); } else { left.append(icn, titleEl, previewEl); }
     const status=document.createElement('div'); status.className='tool-status';
     const spinner=document.createElement('span'); spinner.className='spin';
-    const pill=document.createElement('span'); pill.className='pill pill-info'; pill.textContent='running';
-    status.append(spinner, pill);
+    const dot=document.createElement('span'); dot.className='dot dot-run';
+    const pill=document.createElement('span'); pill.className='pill pill-info'; pill.textContent='running'; // hidden via CSS
+    status.append(spinner, dot, pill);
     head.append(left, status);
     const body=document.createElement('div'); body.className='tool-body';
     const pre=document.createElement('div'); pre.className='pre'; body.append(pre);
+    const bodyId = `tool-body-${Math.random().toString(36).slice(2)}`; body.id=bodyId; head.setAttribute('role','button'); head.setAttribute('tabindex','0'); head.setAttribute('aria-controls', bodyId);
     wrap.append(head, body);
-    ensureTurn().appendChild(wrap);
-    const obj={ wrap, pre, pill, status, titleEl, subEl, kind };
+    ensureToolGroup().appendChild(wrap); bumpGroupCount();
+    const obj={ wrap, head, pre, pill, status, titleEl, subEl, previewEl, kind, collapsed:false, lineCount:0, lastLine:'', exitCode:undefined, dot };
+    // default collapsed: start collapsed for all tools
+    toggleCollapsed(obj, true);
+    updateExecPreview(obj);
+    head.addEventListener('click', ()=> toggleCollapsed(obj));
+    head.addEventListener('keydown', (ev)=>{ if(ev.key==='Enter' || ev.key===' '){ ev.preventDefault(); toggleCollapsed(obj); }});
     if(callId) activeTools.set(callId, obj);
     maybeAutoScroll();
     return obj;
   }
-  function toolOk(callId, text){ const t=activeTools.get(callId); if(!t) return; t.wrap.classList.add('ok'); t.wrap.classList.remove('err'); t.pill.textContent = text||'ok'; t.status.querySelector('.spin')?.remove(); }
-  function toolErr(callId, text){ const t=activeTools.get(callId); if(!t) return; t.wrap.classList.add('err'); t.wrap.classList.remove('ok'); t.pill.textContent = text||'error'; t.status.querySelector('.spin')?.remove(); }
-  function toolAppend(callId, s){ const t=activeTools.get(callId); if(!t) return; t.pre.textContent += s; t.pre.scrollTop = t.pre.scrollHeight; maybeAutoScroll(); }
+  function toolOk(callId, text){ const t=activeTools.get(callId); if(!t) return; t.wrap.classList.add('ok'); t.wrap.classList.remove('err'); t.pill.textContent = text||'ok'; t.dot?.classList.remove('dot-run','dot-err'); t.dot?.classList.add('dot-ok'); t.status.querySelector('.spin')?.remove(); }
+  function toolErr(callId, text){ const t=activeTools.get(callId); if(!t) return; t.wrap.classList.add('err'); t.wrap.classList.remove('ok'); t.pill.textContent = text||'error'; t.dot?.classList.remove('dot-run','dot-ok'); t.dot?.classList.add('dot-err'); t.status.querySelector('.spin')?.remove(); }
+  function toolAppend(callId, s){
+    const t=activeTools.get(callId); if(!t) return;
+    t.pre.textContent += s;
+    try{ const parts=String(s).split(/\r?\n/); if(parts.length>1) t.lineCount += (parts.length-1); const rev=[...parts].reverse(); const lastNonEmpty=rev.find(x=>x && x.trim().length>0); if(lastNonEmpty!==undefined) t.lastLine=lastNonEmpty; }catch{}
+    updateExecPreview(t);
+    t.pre.scrollTop = t.pre.scrollHeight; maybeAutoScroll();
+  }
 
   // WS
   const wsUrl = `${location.protocol==='https:'?'wss':'ws'}://${location.host}/api/sessions/${encodeURIComponent(id)}/events`;
@@ -222,7 +265,24 @@ function initSession(){
     if(reasonPill) reasonPill.textContent = `Reasoning: ${header||'working…'}`;
   }
   function resetReasonHeader(){ if(reasonPill) reasonPill.textContent='Reasoning: —'; }
-  function b64_arr(arr){ try{ const bytes=new Uint8Array(arr); return new TextDecoder().decode(bytes); }catch{ return ''; } }
+  function decodeChunk(x){
+    try{
+      if(x==null) return '';
+      if(Array.isArray(x)){
+        return new TextDecoder().decode(new Uint8Array(x));
+      }
+      if(typeof x === 'object' && Array.isArray(x.data)){
+        return new TextDecoder().decode(new Uint8Array(x.data));
+      }
+      if(typeof x === 'string'){
+        // base64 string → bytes → utf-8
+        const bin = atob(x);
+        const bytes = new Uint8Array([...bin].map(c=>c.charCodeAt(0)));
+        return new TextDecoder().decode(bytes);
+      }
+    }catch{}
+    return '';
+  }
 
   function fmtDuration(d){
     try{
@@ -275,10 +335,11 @@ function initSession(){
           const cmd=(e.msg.command||[]).join(' '); const cwd=e.msg.cwd||''; createTool('exec', e.msg.call_id, cmd, cwd);
         }
         else if(t==='exec_command_output_delta'){
-          const s=b64_arr(e.msg.chunk||[]); toolAppend(e.msg.call_id, s);
+          const s=decodeChunk(e.msg.chunk); toolAppend(e.msg.call_id, s);
         }
         else if(t==='exec_command_end'){
           const code=e.msg.exit_code; const dur=fmtDuration(e.msg.duration);
+          const tool=activeTools.get(e.msg.call_id); if(tool){ tool.exitCode=code; updateExecPreview(tool); }
           if(code===0) toolOk(e.msg.call_id, `ok${dur?` (${dur})`:''}`); else toolErr(e.msg.call_id, `exit ${code}${dur?` (${dur})`:''}`);
         }
         else if(t==='exec_approval_request'){ openApproval('exec', e.id, e.msg||{}); }
@@ -298,13 +359,47 @@ function initSession(){
         }
         else if(t==='web_search_end'){
           const q=e.msg.query||''; const tool=activeTools.get(e.msg.call_id) || createTool('search', e.msg.call_id, 'web search', '');
-          if(tool){ tool.subEl.textContent=q; toolOk(e.msg.call_id, 'done'); }
+          if(tool){ tool.subEl.textContent=q; const n=Array.isArray(e.msg.results)? e.msg.results.length : undefined; tool.previewEl.textContent = (n!==undefined) ? `${n} results` : 'done'; toolOk(e.msg.call_id, 'done'); }
+        }
+        else if(t==='patch_apply_begin'){
+          const changes=e.msg.changes||{}; const files=Object.keys(changes);
+          const tool=createTool('patch', e.msg.call_id, 'apply_patch', `${files.length} files`);
+          let totalAdd=0, totalRem=0; const list=document.createElement('div'); list.className='patch-list';
+          files.forEach((path)=>{
+            const c = changes[path]||{}; let diff=''; let adds=0, rems=0;
+            try{
+              if(c.update && typeof c.update.unified_diff==='string'){
+                diff = c.update.unified_diff;
+                for(const line of diff.split(/\r?\n/)){
+                  if(line.startsWith('+++') || line.startsWith('---') || line.startsWith('@@')) continue;
+                  if(line.startsWith('+')) adds++;
+                  else if(line.startsWith('-')) rems++;
+                }
+              } else if(c.add && typeof c.add.contents==='string'){
+                diff = c.add.contents; adds = diff.split(/\r?\n/).length;
+              } else if(c.delete){ rems = 0; }
+            }catch{}
+            totalAdd += adds; totalRem += rems;
+            const row=document.createElement('div'); row.className='patch-file';
+            const head=document.createElement('div'); head.className='patch-file-head';
+            const name=document.createElement('div'); name.className='patch-file-name'; name.textContent=path;
+            const chips=document.createElement('div'); chips.className='patch-chips';
+            const a=document.createElement('span'); a.className='chip chip-add'; a.textContent=`+${adds}`;
+            const r=document.createElement('span'); r.className='chip chip-rem'; r.textContent=`-${rems}`;
+            chips.append(a,r); head.append(name, chips);
+            const diffBox=document.createElement('div'); diffBox.className='patch-diff'; const pre=document.createElement('pre'); const code=document.createElement('code'); code.textContent=diff; pre.appendChild(code); diffBox.append(pre);
+            row.append(head, diffBox);
+            head.addEventListener('click', ()=>{ row.classList.toggle('open'); });
+            list.append(row);
+          });
+          tool.previewEl.textContent = `+${totalAdd}/-${totalRem}`;
+          tool.pre.replaceWith(list); tool.pre = list;
         }
         else if(t==='mcp_tool_call_begin'){
           const inv=e.msg.invocation||{}; createTool('mcp', e.msg.call_id, `${inv.server||''}.${inv.tool||''}`, '');
         }
         else if(t==='mcp_tool_call_end'){
-          const ok = e.msg.result && !e.msg.result.is_error; if(ok) toolOk(e.msg.call_id, 'ok'); else toolErr(e.msg.call_id, 'error');
+          const ok = e.msg.result && !e.msg.result.is_error; const tool=activeTools.get(e.msg.call_id); if(tool){ tool.previewEl.textContent = ok? 'ok' : 'error'; } if(ok) toolOk(e.msg.call_id, 'ok'); else toolErr(e.msg.call_id, 'error');
         }
         else if(t==='patch_apply_begin'){
           const changes=e.msg.changes||{}; const n=Object.keys(changes).length; const sub=e.msg.auto_approved?`auto-approved • ${n} files`:`${n} files`;
@@ -501,10 +596,49 @@ function initSession(){
   qs('#approval-modal')?.addEventListener('click',(e)=>{ const m=qs('#approval-modal'); if(e.target===m) closeApproval(); });
   window.addEventListener('keydown',(e)=>{ if(e.key==='Escape'){ const m=qs('#approval-modal'); if(m.getAttribute('aria-hidden')==='false') closeApproval(); } });
 
-  // Chat send
+  // Chat queue + send
   let lastEchoedUser = null;
-  qs('#send')?.addEventListener('click', ()=>{ const ta=qs('#chat'); const txt=(ta?.value||'').trim(); if(!txt||!window._ws||_ws.readyState!==1) return; addUser(txt); lastEchoedUser = txt; _ws.send(JSON.stringify({type:'user_message', text:txt})); if(ta) ta.value=''; });
-  qs('#chat')?.addEventListener('keydown', (e)=>{ if((e.ctrlKey||e.metaKey) && e.key==='Enter'){ e.preventDefault(); qs('#send')?.click(); } });
+  const queueEl = qs('#queue'); const queueListEl = qs('#queue-list'); const queueCountEl = qs('#queue-count');
+  const taSend = qs('#chat');
+  const QKEY = `codex-queue-${id||'session'}`;
+  let queue = [];
+  function loadQueue(){ try{ const s=localStorage.getItem(QKEY); const arr=JSON.parse(s||'[]'); if(Array.isArray(arr)) queue = arr.filter(x=>typeof x?.text==='string').map((x,i)=>({id:x.id||String(Date.now()+i), text:x.text})); }catch{ queue=[]; } }
+  function saveQueue(){ try{ localStorage.setItem(QKEY, JSON.stringify(queue)); }catch{} }
+  function updateQueueVisibility(){ if(queueEl) queueEl.classList.toggle('hidden', queue.length===0); if(queueCountEl) queueCountEl.textContent=String(queue.length); }
+  function renderQueue(){ if(!queueListEl) return; queueListEl.innerHTML=''; queue.forEach((it, idx)=>{
+      const row=document.createElement('div'); row.className='queue-item'; row.setAttribute('data-id', it.id);
+      const text=document.createElement('div'); text.className='queue-text'; text.title=it.text; text.textContent=it.text.replace(/\s+/g,' ').slice(0,200);
+      const actions=document.createElement('div'); actions.className='queue-actions';
+      const btnUse=document.createElement('button'); btnUse.className='btn-sm'; btnUse.textContent='Use'; btnUse.title='Move to composer'; btnUse.addEventListener('click',()=>{ if(taSend){ taSend.value=it.text; taSend.focus(); autoSizeChat(); } queue.splice(idx,1); saveQueue(); renderQueue(); updateQueueVisibility(); });
+      const btnSend=document.createElement('button'); btnSend.className='btn-sm'; btnSend.textContent='Send'; btnSend.title='Send this now'; btnSend.addEventListener('click',()=>{ sendText(it.text); queue.splice(idx,1); saveQueue(); renderQueue(); updateQueueVisibility(); if(!taSend || !taSend.value.trim()){ if(queue.length>0){ const next=queue.shift(); if(taSend){ taSend.value=next.text; taSend.focus(); autoSizeChat(); } saveQueue(); renderQueue(); updateQueueVisibility(); } } });
+      const btnUp=document.createElement('button'); btnUp.className='btn-sm'; btnUp.textContent='↑'; btnUp.title='Move up'; btnUp.addEventListener('click',()=>{ if(idx>0){ const tmp=queue[idx-1]; queue[idx-1]=queue[idx]; queue[idx]=tmp; saveQueue(); renderQueue(); } });
+      const btnDown=document.createElement('button'); btnDown.className='btn-sm'; btnDown.textContent='↓'; btnDown.title='Move down'; btnDown.addEventListener('click',()=>{ if(idx<queue.length-1){ const tmp=queue[idx+1]; queue[idx+1]=queue[idx]; queue[idx]=tmp; saveQueue(); renderQueue(); } });
+      const btnDel=document.createElement('button'); btnDel.className='btn-sm'; btnDel.textContent='×'; btnDel.title='Remove'; btnDel.addEventListener('click',()=>{ queue.splice(idx,1); saveQueue(); renderQueue(); updateQueueVisibility(); });
+      actions.append(btnUse, btnSend, btnUp, btnDown, btnDel); row.append(text, actions); queueListEl.append(row);
+    }); updateQueueVisibility(); }
+  function addToQueue(text){ if(!text || !text.trim()) return; queue.push({id:String(Date.now()), text:text.trim()}); saveQueue(); renderQueue(); updateQueueVisibility(); }
+  function sendText(text){ const s=(text||'').trim(); if(!s||!window._ws||_ws.readyState!==1) return; addUser(s); lastEchoedUser = s; _ws.send(JSON.stringify({type:'user_message', text:s})); }
+  function autoSizeChat(){ try{ const ta=qs('#chat'); if(!ta) return; ta.style.height='auto'; const max=Math.max(100, Math.round(window.innerHeight*0.4)); const h=Math.min(ta.scrollHeight, max); ta.style.height=`${h}px`; }catch{} }
+  // Wire send button
+  qs('#send')?.addEventListener('click', ()=>{ const txt=(taSend?.value||'').trim(); if(!txt) return; sendText(txt); if(taSend){ taSend.value=''; autoSizeChat(); }
+    if(queue.length>0){ const next=queue.shift(); if(taSend){ taSend.value=next.text; autoSizeChat(); taSend.focus(); } saveQueue(); renderQueue(); updateQueueVisibility(); }
+  });
+  // Queue button
+  qs('#queue-add')?.addEventListener('click', ()=>{ const v=(taSend?.value||'').trim(); if(!v) return; addToQueue(v); if(taSend){ taSend.value=''; autoSizeChat(); taSend.focus(); } });
+  // Keyboard: Enter sends, Shift+Enter newline, Ctrl/Cmd+Enter queues
+  qs('#chat')?.addEventListener('keydown', (e)=>{
+    if(e.key==='Enter' && (e.ctrlKey||e.metaKey)){
+      e.preventDefault(); const v=(taSend?.value||'').trim(); if(!v) return; addToQueue(v); if(taSend){ taSend.value=''; autoSizeChat(); taSend.focus(); }
+      return;
+    }
+    if(e.key==='Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey){
+      e.preventDefault(); const v=(taSend?.value||'').trim(); if(!v) return; sendText(v); if(taSend){ taSend.value=''; autoSizeChat(); }
+      if(queue.length>0){ const next=queue.shift(); if(taSend){ taSend.value=next.text; autoSizeChat(); taSend.focus(); } saveQueue(); renderQueue(); updateQueueVisibility(); }
+      return;
+    }
+  });
+  // Load queue from storage
+  loadQueue(); renderQueue(); updateQueueVisibility();
 
   // Chat autosize: one-line by default, grow with content/newlines
   (function(){
@@ -543,6 +677,38 @@ function initSession(){
     input?.addEventListener('input', render);
     window.addEventListener('keydown',(e)=>{ const mod=e.ctrlKey||e.metaKey; if(mod && e.key.toLowerCase()==='k'){ e.preventDefault(); open(); } if(e.key==='Escape' && modal.getAttribute('aria-hidden')==='false'){ close(); } });
     modal?.addEventListener('click',(e)=>{ if(e.target===modal) close(); });
+  })();
+
+  // Expand/Collapse all tools in current turn: Alt+Shift+E
+  (function(){
+    window.addEventListener('keydown', (e)=>{
+      if(!(e.altKey && e.shiftKey && (e.key==='E' || e.key==='e'))) return;
+      e.preventDefault();
+      try{
+        const turns = feed.querySelectorAll('.turn');
+        const lastTurn = turns.length ? turns[turns.length-1] : null;
+        const scope = lastTurn || feed;
+        const tools = [...scope.querySelectorAll('.tool')];
+        if(!tools.length) return;
+        const anyCollapsed = tools.some(t=>t.classList.contains('collapsed'));
+        tools.forEach(t=> t.classList.toggle('collapsed', !anyCollapsed));
+      }catch{}
+    });
+  })();
+
+  // ASCII fallback for icons/preview text in limited environments
+  (function(){
+    try{
+      // Override icon generator to ASCII-only glyphs
+      createIcon = function(kind){
+        const span=document.createElement('span'); span.className='tool-icn';
+        let txt='*'; if(kind==='exec') txt='>'; else if(kind==='patch') txt='+/-'; else if(kind==='search') txt='?'; else if(kind==='mcp') txt='@';
+        span.textContent = txt; return span;
+      };
+      // Override preview to avoid Unicode ellipsis
+      const _origPreview = updateExecPreview;
+      updateExecPreview = function(obj){ if(!obj) return; const count=obj.lineCount||0; const code=obj.exitCode; if(code===undefined || code===null){ obj.previewEl.textContent = count>0 ? `${count} lines...` : 'running...'; } else if(code===0){ obj.previewEl.textContent = count>0 ? `${count} lines output` : 'no output'; } else { const last=(obj.lastLine||'').trim(); obj.previewEl.textContent = last ? last : `exit ${code}`; } };
+    }catch{}
   })();
 
   // Plan rendering

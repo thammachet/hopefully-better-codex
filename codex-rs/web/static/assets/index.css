@@ -194,3 +194,14 @@ input[type=text], select, .filter, .palette-input{
 .msg:last-child{ border-bottom:0 }
 .meta{ font-size:12px; color:var(--muted) }
 pre{ margin:6px 0 0; white-space:pre-wrap; word-break:break-word }
+
+/* Queue styles */
+.queue{ border:1px solid var(--line); border-radius:10px; padding:8px; margin-top:10px; background:rgba(255,255,255,0.02) }
+.queue-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px }
+.queue-title{ font-weight:600; font-size:12px; color:var(--muted) }
+.queue-list{ display:flex; flex-direction:column; gap:6px }
+.queue-item{ display:flex; align-items:center; gap:8px; border:1px solid var(--line); border-radius:8px; padding:6px; background:rgba(255,255,255,0.02) }
+.queue-text{ flex:1; min-width:0; font-size:12px; color:var(--fg); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.queue-actions{ display:flex; align-items:center; gap:6px }
+.queue-actions .btn-sm{ padding:4px 6px; font-size:11px; border-radius:6px; border:1px solid var(--line); background:transparent; color:var(--fg); cursor:pointer }
+.queue-actions .btn-sm:hover{ background:rgba(255,255,255,0.04) }
