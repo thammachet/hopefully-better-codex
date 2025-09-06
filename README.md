@@ -32,6 +32,42 @@ Then simply run `codex` to get started:
 codex
 ```
 
+If you prefer to build from source with Cargo, run the following from the `codex-rs/` directory:
+
+```shell
+cd codex-rs
+cargo install --path cli --profile dev --target-dir ./target
+```
+
+This compiles the Rust CLI and installs the `codex` binary into your Cargo bin directory (typically `~/.cargo/bin`).
+
+### Codex Web (local web UI)
+
+Run a local web UI for Codex alongside the CLI.
+
+Start the server:
+
+```shell
+codex web
+```
+
+By default it binds to `0.0.0.0:7878`. Open `http://localhost:7878` in your browser.
+
+Flags:
+
+- `--host <ip>`: interface to bind (default `0.0.0.0`)
+- `--port <port>`: port to listen on (default `7878`)
+- `--static-dir <dir>`: serve a custom static site at `/` (optional)
+
+What you can do in Codex Web:
+
+- Create new sessions: choose CWD, model, approval policy, and sandbox mode.
+- Resume rollout sessions and monitor events live.
+- Manage authentication: start/cancel login and view status.
+- Use the built-in terminal at `/pty`.
+
+Note: This is the local web UI for Codex CLI. For OpenAI’s hosted, cloud-based agent, Codex Web, visit https://chatgpt.com/codex.
+
 <details>
 <summary>You can also go to the <a href="https://github.com/openai/codex/releases/latest">latest GitHub Release</a> and download the appropriate binary for your platform.</summary>
 
