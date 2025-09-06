@@ -299,3 +299,17 @@ initLogin();
 initCreate();
 initRollouts();
 initPalette();
+
+// Auto-hide header on scroll for home page
+(function(){
+  const header = document.querySelector('.app-header'); if(!header) return;
+  let last = 0; let hidden=false; let ticking=false;
+  function cur(){ return window.pageYOffset || document.documentElement.scrollTop; }
+  function setHidden(h){ if(h===hidden) return; hidden=h; header.classList.toggle('header-hidden', hidden); }
+  function onScroll(){ const y=cur(); if(Math.abs(y-last)<3) return; if(y>last && y>12) setHidden(true); else setHidden(false); last=y; }
+  function onWheel(){ if(!ticking){ window.requestAnimationFrame(()=>{ onScroll(); ticking=false; }); ticking=true; } }
+  window.addEventListener('scroll', onScroll, { passive:true });
+  window.addEventListener('wheel', onWheel, { passive:true });
+  window.addEventListener('mousemove', (e)=>{ if(e.clientY<16) setHidden(false); });
+  header.addEventListener('mouseenter', ()=> setHidden(false));
+})();
