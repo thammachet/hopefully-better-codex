@@ -28,10 +28,14 @@ body{
   backdrop-filter: blur(var(--blur));
   background:linear-gradient(180deg, var(--glass), transparent);
   border-bottom:1px solid var(--line);
+  transition: transform var(--fast) ease;
 }
-.brand .home{ display:flex; align-items:center; gap:8px; color:var(--fg); text-decoration:none; padding:6px 10px; border-radius:10px; border:1px solid var(--line); background:var(--bg-soft) }
-.brand .logo{ font-weight:700 }
-.brand .name{ background: linear-gradient(90deg, var(--accent), var(--accent2)); -webkit-background-clip: text; background-clip: text; color: transparent }
+/* Auto-hide support */
+.app-header.header-hidden{ transform: translateY(-110%) }
+.brand .home{ display:flex; align-items:center; gap:6px; color:var(--fg); text-decoration:none; padding:4px 8px; border-radius:8px; border:1px solid var(--line); background:var(--bg-soft) }
+.brand .logo{ font-weight:700; font-size:14px }
+/* Minimal brand: hide wordmark by default for a cleaner header */
+.brand .name{ display:none }
 .nav{ display:flex; gap:8px }
 .nav-link{ color:var(--fg); text-decoration:none; padding:6px 10px; border-radius:10px; border:1px solid var(--line); background:var(--bg-soft) }
 .status{ display:flex; gap:8px; align-items:center; justify-self:center; flex-wrap: wrap }

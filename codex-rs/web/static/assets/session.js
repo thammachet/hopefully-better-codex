@@ -144,6 +144,20 @@ function initSession(){
   if(window.innerHeight <= 420){ qs('#ctx-card')?.classList.add('hidden'); }
   window.addEventListener('resize', ()=>{ if(window.innerHeight <= 420) qs('#ctx-card')?.classList.add('hidden'); });
 
+  // Make feed use available viewport height by default
+  function adjustFeedHeight(){
+    try{
+      const f = qs('#feed'); if(!f) return;
+      // Compute available height from feed top to viewport bottom with a small margin
+      const top = f.getBoundingClientRect().top;
+      const h = Math.max(160, Math.floor(window.innerHeight - top - 16));
+      f.style.height = `${h}px`;
+      f.style.maxHeight = `${h}px`;
+    }catch{}
+  }
+  adjustFeedHeight();
+  let rh=null; window.addEventListener('resize', ()=>{ clearTimeout(rh); rh=setTimeout(adjustFeedHeight, 100); });
+
   // Feed helpers
   function makeMsg(who, contentNode, rawText){
     const wrap=document.createElement('div'); wrap.className=`msg msg-${who}`;
@@ -452,6 +466,22 @@ function initSession(){
   qs('#send')?.addEventListener('click', ()=>{ const ta=qs('#chat'); const txt=(ta?.value||'').trim(); if(!txt||!window._ws||_ws.readyState!==1) return; addUser(txt); lastEchoedUser = txt; _ws.send(JSON.stringify({type:'user_message', text:txt})); if(ta) ta.value=''; });
   qs('#chat')?.addEventListener('keydown', (e)=>{ if((e.ctrlKey||e.metaKey) && e.key==='Enter'){ e.preventDefault(); qs('#send')?.click(); } });
 
+  // Chat autosize: one-line by default, grow with content/newlines
+  (function(){
+    const ta = qs('#chat'); if(!ta) return;
+    function autosize(){
+      ta.style.height = 'auto';
+      const max = Math.max(100, Math.round(window.innerHeight * 0.4));
+      const h = Math.min(ta.scrollHeight, max);
+      ta.style.height = `${h}px`;
+      if(typeof adjustFeedHeight === 'function') adjustFeedHeight();
+    }
+    ['input','change'].forEach(ev=> ta.addEventListener(ev, autosize));
+    ta.addEventListener('focus', autosize);
+    ta.addEventListener('paste', ()=> setTimeout(autosize, 0));
+    setTimeout(autosize, 0);
+  })();
+
   // Command palette (simple)
   (function(){
     const modal=qs('#palette-modal'); const input=qs('#palette-input'); const list=qs('#palette-list');
@@ -500,3 +530,19 @@ function initSession(){
 // Boot
 initTheme();
 initSession();
+
+// Auto-hide header on scroll (show on scroll up or when cursor near top)
+(function(){
+  const header = document.querySelector('.app-header'); if(!header) return;
+  let last = 0; let hidden = false; let ticking=false;
+  const scrollEl = document.querySelector('#feed') || window;
+  function cur(){ return scrollEl===window ? window.pageYOffset || document.documentElement.scrollTop : scrollEl.scrollTop; }
+  function setHidden(h){ if(h===hidden) return; hidden = h; header.classList.toggle('header-hidden', hidden); }
+  function onScroll(){ const y = cur(); if(Math.abs(y-last) < 3) return; if(y > last && y > 12) setHidden(true); else setHidden(false); last = y; }
+  function onWheel(){ if(!ticking){ window.requestAnimationFrame(()=>{ onScroll(); ticking=false; }); ticking=true; } }
+  (scrollEl===window?window:scrollEl).addEventListener('scroll', onScroll, { passive:true });
+  (scrollEl===window?window:scrollEl).addEventListener('wheel', onWheel, { passive:true });
+  // Reveal when mouse near top
+  window.addEventListener('mousemove', (e)=>{ if(e.clientY < 16) setHidden(false); });
+  header.addEventListener('mouseenter', ()=> setHidden(false));
+})();

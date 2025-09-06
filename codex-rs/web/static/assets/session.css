@@ -1,22 +1,31 @@
 /* Session page overrides and extras. Shared styles live in /assets/index.css */
 
+/* Always-compact header for session page */
+.app-header{ padding:6px 12px !important; grid-template-columns:auto 1fr auto; gap:8px }
+.brand .home{ padding:4px 8px; gap:6px; border-radius:8px }
+.brand .logo{ font-size:14px }
+.brand .name{ display:none }
+.status{ gap:6px; flex-wrap:nowrap; overflow:hidden }
+.pill{ font-size:11px; padding:2px 6px }
+#approval-pill, #sandbox-pill, #cwd-pill{ display:none }
+.actions .btn{ padding:6px 8px }
+
 /* Layout tweaks */
 .controls-card{ margin-bottom:12px }
 .field-wide{ min-width:240px }
 
 /* Make feed dominate on wide screens */
 .grid2{ grid-template-columns: 2fr 1fr; align-items:start; gap:10px }
-.feed-card{ grid-row: span 2 }
-.feed{ max-height:65vh }
+.feed-card{ grid-row: span 2; display:flex; flex-direction:column }
+.feed{ max-height:none; }
 
 /* Chat composer */
-#chat{ width:100%; min-height:84px; resize:vertical; border-radius:10px; border:1px solid var(--line); background:var(--bg-soft); color:var(--fg); padding:8px 10px }
+#chat{ width:100%; min-height:36px; max-height:40vh; resize:none; overflow:hidden; border-radius:10px; border:1px solid var(--line); background:var(--bg-soft); color:var(--fg); padding:6px 10px; line-height:1.35 }
 #chat:focus{ outline:2px solid var(--accent); outline-offset:2px }
 
 /* Mobile refinements */
 @media (max-width: 900px){
   .grid2{ grid-template-columns: 1fr }
-  .feed{ max-height:60vh }
 }
 @media (max-width: 700px){
   #plan .plan-item{ padding:5px 6px }
@@ -26,7 +35,6 @@
 @media (max-height: 420px){
   .container{ padding:10px }
   .card{ padding:12px }
-  .feed{ max-height: calc(100vh - 190px) }
   .plan{ max-height: 20vh; overflow:auto }
   /* keep header tighter */
   .app-header{ padding:8px 12px }
