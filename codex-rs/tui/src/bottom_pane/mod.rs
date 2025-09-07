@@ -33,6 +33,9 @@ mod selection_popup_common;
 mod text_input_view;
 mod textarea;
 
+// Simpler alias for a common callback type to reduce type complexity in signatures.
+type OnAcceptCallback = dyn Fn(&AppEventSender, String) + Send + Sync;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CancellationEvent {
     Handled,
@@ -401,7 +404,7 @@ impl BottomPane {
         subtitle: Option<String>,
         footer_hint: Option<String>,
         initial_value: String,
-        on_accept: Box<dyn Fn(&AppEventSender, String) + Send + Sync>,
+        on_accept: Box<OnAcceptCallback>,
     ) {
         let view = text_input_view::TextInputView::new(
             title,

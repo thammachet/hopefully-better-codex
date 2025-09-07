@@ -40,6 +40,7 @@ pub struct ServerOpts {
 
 #[derive(Debug, Deserialize)]
 struct CreateSessionReq {
+    #[allow(dead_code)]
     prompt: Option<String>,
     cwd: Option<PathBuf>,
     model: Option<String>,
@@ -109,6 +110,7 @@ pub async fn run_main(
     Ok(())
 }
 
+#[allow(dead_code)]
 async fn home_page() -> axum::response::Html<String> {
     let html = r###"<!doctype html>
 <html lang="en">
@@ -495,9 +497,10 @@ async fn home_page() -> axum::response::Html<String> {
     axum::response::Html(html.to_string())
 }
 
+#[allow(dead_code)]
 async fn session_page(Path(id): Path<String>) -> axum::response::Html<String> {
     // Minimal page scaffolding; reuses the same CSS theme for consistency.
-    let id_json = serde_json::to_string(&id).unwrap();
+    let id_json = serde_json::to_string(&id).unwrap_or_else(|_| "\"\"".to_string());
     let prefix = r###"<!doctype html>
 <html lang="en">
   <head>
@@ -573,6 +576,7 @@ async fn session_page(Path(id): Path<String>) -> axum::response::Html<String> {
     axum::response::Html(html)
 }
 
+#[allow(dead_code)]
 async fn pty_page() -> axum::response::Html<String> {
     let html = r###"<!doctype html>
 <html lang="en">

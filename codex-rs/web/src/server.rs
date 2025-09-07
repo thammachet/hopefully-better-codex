@@ -52,15 +52,17 @@ async fn handle_socket(app: Arc<AppState>, session_id: uuid::Uuid, mut socket: W
         }
     };
 
-    if ops_tx_opt.is_none() {
-        let _ = socket
-            .send(Message::Text(
-                "{\"type\":\"error\",\"message\":\"session not found\"}".to_string(),
-            ))
-            .await;
-        return;
-    }
-    let ops_tx = ops_tx_opt.unwrap();
+    let ops_tx = match ops_tx_opt {
+        Some(tx) => tx,
+        None => {
+            let _ = socket
+                .send(Message::Text(
+                    "{\"type\":\"error\",\"message\":\"session not found\"}".to_string(),
+                ))
+                .await;
+            return;
+        }
+    };
 
     // Fan-out task: forward broadcasted events to the websocket.
     let (mut sender, mut receiver) = socket.split();

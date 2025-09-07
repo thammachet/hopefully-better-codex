@@ -99,6 +99,7 @@ impl BottomPaneView for TextInputView {
         h
     }
 
+    #[allow(clippy::vec_init_then_push)]
     fn render(&self, area: Rect, buf: &mut Buffer) {
         if area.height == 0 || area.width == 0 {
             return;

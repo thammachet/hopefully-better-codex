@@ -1,3 +1,8 @@
+#![allow(clippy::empty_line_after_doc_comments)]
+
+// This module contains rendering code where a stray documentation comment
+// is retained for readability; allow clippy's empty-line-after-doc-comments.
+
 use codex_core::protocol::TokenUsageInfo;
 use codex_protocol::num_format::format_si_suffix;
 use crossterm::event::KeyCode;
