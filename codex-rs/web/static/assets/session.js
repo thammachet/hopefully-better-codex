@@ -155,6 +155,13 @@ function initSession(){
   const tokensEl = qs('#tokens');
   const planEl = qs('#plan');
   const reasonPill = qs('#reason-pill');
+  const baseTitle = document.title || 'Codex Session';
+  function setTitleReasoning(text){
+    try{
+      const t = (text||'').toString().trim();
+      document.title = t ? `${t} — Codex Session` : baseTitle;
+    }catch{}
+  }
 
   // Move reasoning pill next to Chat title in composer
   try{
@@ -335,6 +342,7 @@ function initSession(){
   function showReasonHeader(){
     const header = extractFirstBold(reasonHeaderBuffer);
     if(reasonPill) reasonPill.textContent = `Reasoning: ${header||'working…'}`;
+    setTitleReasoning(header||'working…');
   }
   function resetReasonHeader(){ if(reasonPill) reasonPill.textContent='Reasoning: —'; }
   function decodeChunk(x){
@@ -456,9 +464,17 @@ function initSession(){
         else if(t==='agent_message_delta'){ addAssistantDelta(e.msg.delta||''); }
         else if(t==='agent_message'){ addAssistant(e.msg.message||''); }
         else if(t==='agent_reasoning_delta'){ addReasoningDelta(e.msg.delta||''); reasonHeaderBuffer += (e.msg.delta||''); showReasonHeader(); }
-        else if(t==='agent_reasoning'){ setReasoning(e.msg.text||''); reasonHeaderBuffer=''; const h=extractFirstBold(e.msg.text||''); if(reasonPill) reasonPill.textContent=`Reasoning: ${h||'done'}`; }
+        else if(t==='agent_reasoning'){
+          setReasoning(e.msg.text||''); reasonHeaderBuffer=''; const h=extractFirstBold(e.msg.text||'');
+          if(reasonPill) reasonPill.textContent=`Reasoning: ${h||'done'}`;
+          setTitleReasoning(h||'done');
+        }
         else if(t==='agent_reasoning_raw_content_delta'){ const d=(new TextDecoder().decode(new Uint8Array(e.msg.delta||[])))||''; addReasoningDelta(d); reasonHeaderBuffer += d; showReasonHeader(); }
-        else if(t==='agent_reasoning_raw_content'){ setReasoning((e.msg.text||'')); reasonHeaderBuffer=''; const h=extractFirstBold(e.msg.text||''); if(reasonPill) reasonPill.textContent=`Reasoning: ${h||'done'}`; }
+        else if(t==='agent_reasoning_raw_content'){
+          setReasoning((e.msg.text||'')); reasonHeaderBuffer=''; const h=extractFirstBold(e.msg.text||'');
+          if(reasonPill) reasonPill.textContent=`Reasoning: ${h||'done'}`;
+          setTitleReasoning(h||'done');
+        }
         else if(t==='agent_reasoning_section_break'){ currentReasonText += '\n\n'; reasonHeaderBuffer=''; showReasonHeader(); }
         else if(t==='exec_command_begin'){
           const cmd=(e.msg.command||[]).join(' '); const cwd=e.msg.cwd||''; createTool('exec', e.msg.call_id, cmd, cwd);
@@ -478,6 +494,7 @@ function initSession(){
           // Agent started working: disable send and highlight queue
           agentBusy = true; updateComposerBusyUI();
           /* optional: show meta */ reasonHeaderBuffer=''; resetReasonHeader();
+          setTitleReasoning('working…');
         }
         else if(t==='task_complete'){
           // Some backends include last_agent_message here; avoid duplicates if we already rendered the assistant content.
@@ -488,6 +505,7 @@ function initSession(){
           assistantHadDelta = false; /* keep last reasoning header visible; if none, set to default */ if(!reasonHeaderBuffer) resetReasonHeader(); reasonHeaderBuffer='';
           // Agent finished: re-enable send and restore styling
           agentBusy = false; updateComposerBusyUI();
+          setTitleReasoning('done');
         }
         else if(t==='web_search_begin'){
           createTool('search', e.msg.call_id, 'web search', '');
