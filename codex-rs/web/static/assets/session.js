@@ -521,7 +521,7 @@ function initSession(){
   })();
 
   // Actions
-  // New session (same CWD)
+  // New session: carry current page context (cwd, model, approval, sandbox)
   qs('#new-session')?.addEventListener('click', async ()=>{
     const btn = qs('#new-session'); if(btn) { btn.disabled = true; btn.textContent = 'New…'; }
     try{
@@ -532,7 +532,10 @@ function initSession(){
         if(idx>=0) cwd = pill.slice(idx+1).trim();
         if(cwd==='—') cwd = '';
       }
-      const body = { cwd: cwd || null };
+      const model = qs('#ctx-model')?.value || 'gpt-5';
+      const approval_policy = qs('#ctx-approval')?.value || undefined;
+      const sandbox_mode = qs('#ctx-sandbox')?.value || undefined;
+      const body = { cwd: cwd || null, model, approval_policy, sandbox_mode };
       const r = await fetch('/api/sessions', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(body) });
       if(!r.ok){ throw new Error(await r.text()); }
       const j = await r.json();
