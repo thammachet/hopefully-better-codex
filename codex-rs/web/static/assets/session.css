@@ -63,7 +63,7 @@
 .tool-sub{ font-size:11px; color:var(--muted); white-space:normal; overflow-wrap:anywhere }
 .tool-sep{ color:var(--muted) }
 .tool-status{ display:flex; align-items:center; gap:8px }
-.tool-body{ margin-top:6px }
+.tool-body{ margin-top:6px; max-height:600px; overflow:hidden; opacity:1; transition: max-height var(--fast) ease, opacity var(--fast) ease }
 .tool .pre{ background:#080b10; color:#fff; border:1px solid var(--line); border-radius:8px; padding:8px; max-height:200px; overflow:auto; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; white-space:pre-wrap; word-break:break-word; font-size:12px }
 .tool .pre code{ color:#fff }
 .tool.ok .pill{ background:#1a2a1f; color:#9be7a0; border-color:#24422a }
@@ -71,7 +71,7 @@
 .spin{ width:12px; height:12px; border-radius:50%; border:2px solid rgba(255,255,255,.28); border-top-color:#fff; animation:spin .8s linear infinite; display:inline-block }
 
 /* Collapsed mode */
-.tool.collapsed .tool-body{ display:none }
+.tool.collapsed .tool-body{ max-height:0; opacity:0 }
 .tool-preview{ display:none; font-size:11px; color:var(--muted); white-space:normal; overflow-wrap:anywhere }
 .tool.collapsed .tool-preview{ display:inline }
 
@@ -103,12 +103,14 @@
 .tool-group-title{ font-weight:600 }
 @keyframes spin{ to{ transform:rotate(360deg) } }
 @keyframes fadeIn{ from{ opacity:0; transform:translateY(2px) } to{ opacity:1; transform:translateY(0) } }
+@keyframes fadeInUp{ from{ opacity:0; transform:translateY(6px) } to{ opacity:1; transform:translateY(0) } }
 
 /* Card density tweaks for Session / Chat / Plan */
 .feed-card, .composer, .plan-card{ padding:12px }
 .feed{ padding:10px }
 .turn{ padding:8px 6px }
 .msg{ padding:4px 4px }
+.msg{ animation: fadeInUp var(--fast) ease both }
 .msg-head{ margin-bottom:2px }
 .md p{ margin:4px 0 }
 .md ul{ margin:4px 0 4px 16px }
@@ -141,3 +143,7 @@
 .msg-system .md{ display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; color:var(--muted); font-size:12px }
 .msg-system.expanded .md{ -webkit-line-clamp:unset; display:block }
 .msg-system .show-more{ margin-left:8px; font-size:11px; border:1px solid var(--line); background:transparent; color:var(--fg); border-radius:6px; padding:0 6px; cursor:pointer }
+
+/* Smoothly expand/collapse Reasoning body */
+.reasoning .body{ max-height:600px; overflow:hidden; opacity:1; transition: max-height var(--fast) ease, opacity var(--fast) ease }
+.reasoning.collapsed .body{ max-height:0; opacity:0 }

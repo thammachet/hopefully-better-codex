@@ -27,10 +27,6 @@
           <svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M11 5h2v14h-2zM5 11h14v2H5z"/></svg>
           <span class="label">New</span>
         </button>
-        <button id="interrupt" class="btn ghost icon" aria-label="Interrupt" title="Interrupt">
-          <svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" ry="2" fill="currentColor"/></svg>
-          <span class="label">Interrupt</span>
-        </button>
         <button id="export" class="btn ghost icon" aria-label="Export JSONL" title="Export JSONL">
           <svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 3a1 1 0 0 1 1 1v8.586l2.293-2.293 1.414 1.414L12 16.414 7.293 11.707l1.414-1.414L11 12.586V4a1 1 0 0 1 1-1zM5 19a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2h-2v2H7v-2H5v2z"/></svg>
           <span class="label">Export</span>
@@ -102,6 +98,7 @@
           <h3>Chat</h3>
           <textarea id="chat" rows="1" placeholder="Type your prompt..."></textarea>
           <div class="right">
+            <button id="interrupt" class="btn ghost" aria-label="Interrupt" title="Interrupt">Interrupt</button>
             <button id="queue-add" class="btn ghost" title="Add to queue (Ctrl/Cmd+Enter)">Queue</button>
             <button id="send" class="btn primary" title="Send (Enter)">Send</button>
           </div>

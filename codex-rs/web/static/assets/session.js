@@ -222,6 +222,12 @@ function initSession(){
     const title=document.createElement('div'); title.className='tool-group-title'; title.textContent='Tools';
     const count=document.createElement('span'); count.className='pill pill-muted'; count.textContent='0';
     head.append(title, count); group.append(head); currentTurn.appendChild(group);
+    // If an assistant message already exists for this turn, keep it below the tools group
+    try{
+      if(currentAssistant && currentAssistant.parentElement===currentTurn){
+        currentTurn.insertBefore(currentAssistant, group.nextSibling);
+      }
+    }catch{}
     head.addEventListener('click', ()=>{
       const tools=[...group.querySelectorAll(':scope > .tool')];
       const anyCollapsed=tools.some(t=>t.classList.contains('collapsed'));
