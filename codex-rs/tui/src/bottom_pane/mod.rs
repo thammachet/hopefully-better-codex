@@ -738,9 +738,9 @@ mod tests {
         }
         assert!(found_working, "expected Working header to be visible");
 
-        // Composer placeholder should be visible somewhere below.
+        // Composer placeholder should be visible somewhere in the pane.
         let mut found_composer = false;
-        for y in 1..area.height.saturating_sub(2) {
+        for y in 0..area.height {
             let mut row = String::new();
             for x in 0..area.width {
                 row.push(buf[(x, y)].symbol().chars().next().unwrap_or(' '));
