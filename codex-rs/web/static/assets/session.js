@@ -586,28 +586,27 @@ function initSession(){
   // Git Auto-Commit
   (function(){
     const modal=qs('#git-modal'); const msg=qs('#git-message'); const bOpen=qs('#git-btn'); const bClose=qs('#git-close'); const bRun=qs('#git-run'); const bCancel=qs('#git-cancel');
-    const LS_MSG='codex-git-message';
-    function open(){ modal.setAttribute('aria-hidden','false'); try{ const saved=localStorage.getItem(LS_MSG); if(saved && msg) msg.value=saved; }catch{} msg?.focus(); }
+    function open(){ modal.setAttribute('aria-hidden','false'); msg?.focus(); }
     function close(){ modal.setAttribute('aria-hidden','true'); }
     bOpen?.addEventListener('click', open);
     bClose?.addEventListener('click', close);
     bCancel?.addEventListener('click', close);
     function run(){
-      const m = (msg?.value||'').trim() || 'chore: update';
-      try{ localStorage.setItem(LS_MSG, m); }catch{}
+      const m = (msg?.value||'').trim();
       const pull = qs('#git-pull')?.checked; const add = qs('#git-add')?.checked; const push = qs('#git-push')?.checked;
       const steps = [];
       if(pull) steps.push('git pull --rebase');
       if(add) steps.push('git add -A');
-      steps.push(`git commit -m "${m.replace(/"/g,'\\"')}" || true`);
+      if(m){ steps.push(`git commit -m "${m.replace(/"/g,'\\"')}" || true`); } else { steps.push('git commit -m "<AUTO_MESSAGE>" || true'); }
       if(push) steps.push('git push');
       const cwd = (qs('#ctx-cwd')?.value||'').trim();
       const instruct = [
         'Please perform a Git auto-commit in the current workspace.',
         cwd?`CWD: ${cwd}`:'',
+        m? '' : 'Generate a concise, conventional commit message summarizing the staged changes (feat/fix/chore with scope if applicable, ~72-char subject). Replace <AUTO_MESSAGE> with your message.',
         'Steps:',
         ...steps.map(s=>`- ${s}`),
-        'Use the default remote/branch. If pull fails due to divergence, attempt a rebase. Summarize what changed.'
+        'Use the default remote/branch. If pull fails due to divergence, attempt a rebase.'
       ].filter(Boolean).join('\n');
       if(!window._ws || _ws.readyState!==1){ alert('WebSocket not connected'); return; }
       _ws.send(JSON.stringify({type:'user_message', text: instruct}));
