@@ -20,7 +20,6 @@ function dlog(...args){
   try{
     const line = `${timestamp()} ${args.map(toStr).join(' ')}`;
     debugLog.push(line);
-    if(DEBUG) console.log('[codex-session]', ...args);
   }catch{}
 }
 const setPill = (sel, text, kind = 'pill-info') => {
@@ -403,7 +402,24 @@ function initSession(){
         dlog('event raw', rawPreview);
         const e=JSON.parse(ev.data); const t=e.msg?.type; dlog('event type', t);
         gotFirstEvent = true;
-        if(t==='user_message'){ const m=e.msg.message||''; if(lastEchoedUser && m===lastEchoedUser){ lastEchoedUser=null; } else { addUser(m); } }
+        if(t==='user_message'){
+          const m = e.msg.message||'';
+          const kind = (()=>{ try{ return String(e.msg.kind||'').toLowerCase(); }catch{ return ''; } })();
+          const trimmed = m.trim();
+          // Hide metadata-only inputs such as environment_context and user_instructions
+          if(
+            kind==='environment_context' ||
+            kind==='user_instructions' ||
+            trimmed.startsWith('<environment_context>') ||
+            trimmed.startsWith('<user_instructions>')
+          ){
+            // ignore
+          } else if(lastEchoedUser && m===lastEchoedUser){
+            lastEchoedUser = null;
+          } else {
+            addUser(m);
+          }
+        }
         else if(t==='agent_message_delta'){ addAssistantDelta(e.msg.delta||''); }
         else if(t==='agent_message'){ addAssistant(e.msg.message||''); }
         else if(t==='agent_reasoning_delta'){ addReasoningDelta(e.msg.delta||''); reasonHeaderBuffer += (e.msg.delta||''); showReasonHeader(); }

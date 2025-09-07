@@ -351,9 +351,17 @@ async fn home_page() -> axum::response::Html<String> {
             case 'token_count':
               $('#ws-global').textContent = `tokens: in ${e.msg.input_tokens} out ${e.msg.output_tokens}${e.msg.reasoning_output_tokens?` (reason ${e.msg.reasoning_output_tokens})`:''}`;
               break;
-            case 'user_message':
-              addChat('user', e.msg.message||'');
+            case 'user_message': {
+              const m = e.msg?.message||'';
+              let skip = false;
+              try{
+                const kind = String(e.msg?.kind||'').toLowerCase();
+                const trimmed = m.trim();
+                if(kind==='environment_context' || kind==='user_instructions' || trimmed.startsWith('<environment_context>') || trimmed.startsWith('<user_instructions>')) skip = true;
+              }catch{}
+              if(!skip) addChat('user', m);
               break;
+            }
             case 'agent_message_delta':
               ensureAgentBubble(); agentBubble.querySelector('pre').textContent += e.msg.delta||''; break;
             case 'agent_message':
