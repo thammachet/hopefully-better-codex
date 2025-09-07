@@ -4,6 +4,16 @@
 // ---------- Utils ----------
 const qs = (s, el = document) => el.querySelector(s);
 const qsa = (s, el = document) => [...el.querySelectorAll(s)];
+// Debug logger (enable with ?debug=1 or localStorage codex-debug=1)
+const DEBUG = (() => {
+  try{
+    const sp = new URLSearchParams(location.search);
+    if (sp.get('debug') === '1') return true;
+    const v = localStorage.getItem('codex-debug');
+    return v === '1' || v === 'true';
+  }catch{ return false }
+})();
+function dlog(...args){ try{ if(DEBUG) console.log('[codex-session]', ...args); }catch{} }
 const setPill = (sel, text, kind = 'pill-info') => {
   const el = qs(sel); if(!el) return;
   el.textContent = text;
@@ -495,14 +505,17 @@ function initSession(){
             const init = e.msg.initial_messages || [];
             if(Array.isArray(init) && init.length){
               try{
+                const counts={ user_message:0, agent_message:0, agent_reasoning:0, agent_reasoning_raw_content:0, web_search_end:0, other:0 };
                 for(const im of init){
                   const tt = im?.type;
-                  if(tt==='user_message'){ addUser(im.message||''); }
-                  else if(tt==='agent_message'){ addAssistant(im.message||''); }
-                  else if(tt==='agent_reasoning'){ setReasoning(im.text||''); }
-                  else if(tt==='agent_reasoning_raw_content'){ addReasoningDelta(im.text||''); }
-                  else if(tt==='web_search_end'){ createTool('search', im.call_id||'', 'web search', im.query||''); }
+                  if(tt==='user_message'){ addUser(im.message||''); counts.user_message++; }
+                  else if(tt==='agent_message'){ addAssistant(im.message||''); counts.agent_message++; }
+                  else if(tt==='agent_reasoning'){ setReasoning(im.text||''); counts.agent_reasoning++; }
+                  else if(tt==='agent_reasoning_raw_content'){ addReasoningDelta(im.text||''); counts.agent_reasoning_raw_content++; }
+                  else if(tt==='web_search_end'){ createTool('search', im.call_id||'', 'web search', im.query||''); counts.web_search_end++; }
+                  else { counts.other++; dlog('init message (unhandled)', im); }
                 }
+                dlog('initial_messages rendered', counts);
               }catch{}
             }
           }catch{}
