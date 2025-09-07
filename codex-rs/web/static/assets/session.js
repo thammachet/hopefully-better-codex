@@ -376,6 +376,39 @@ function initSession(){
     return '';
   }
 
+  // Busy state: when the AI is running a task, prevent sending new turns
+  let agentBusy = false;
+  function updateComposerBusyUI(){
+    try{
+      const sendBtn = qs('#send');
+      const queueBtn = qs('#queue-add');
+      const ta = qs('#chat');
+      if(!sendBtn || !queueBtn) return;
+      if(agentBusy){
+        // Disable send, promote queue
+        sendBtn.disabled = true;
+        sendBtn.classList.remove('primary');
+        sendBtn.classList.add('ghost');
+        sendBtn.title = 'Agent is working — add to queue instead';
+        queueBtn.classList.remove('ghost');
+        queueBtn.classList.add('primary');
+        queueBtn.title = 'Queued — will send after current task';
+        ta?.setAttribute('aria-label', 'Agent busy — text will be queued');
+      } else {
+        // Restore defaults
+        sendBtn.disabled = false;
+        queueBtn.disabled = false;
+        sendBtn.classList.remove('ghost');
+        sendBtn.classList.add('primary');
+        queueBtn.classList.remove('primary');
+        queueBtn.classList.add('ghost');
+        sendBtn.title = 'Send (Enter)';
+        queueBtn.title = 'Add to queue (Ctrl/Cmd+Enter)';
+        ta?.setAttribute('aria-label', 'Type your prompt…');
+      }
+    }catch{}
+  }
+
   function connect(){
     const ws=new WebSocket(wsUrl);
     let gotFirstEvent = false;
@@ -441,7 +474,11 @@ function initSession(){
         else if(t==='exec_approval_request'){ openApproval('exec', e.id, e.msg||{}); }
         else if(t==='apply_patch_approval_request'){ openApproval('patch', e.id, e.msg||{}); }
         else if(t==='turn_diff'){ addSystem(e.msg.unified_diff||''); }
-        else if(t==='task_started'){ /* optional: show meta */ reasonHeaderBuffer=''; resetReasonHeader(); }
+        else if(t==='task_started'){
+          // Agent started working: disable send and highlight queue
+          agentBusy = true; updateComposerBusyUI();
+          /* optional: show meta */ reasonHeaderBuffer=''; resetReasonHeader();
+        }
         else if(t==='task_complete'){
           // Some backends include last_agent_message here; avoid duplicates if we already rendered the assistant content.
           const last = e.msg.last_agent_message;
@@ -449,6 +486,8 @@ function initSession(){
             addAssistant(last);
           }
           assistantHadDelta = false; /* keep last reasoning header visible; if none, set to default */ if(!reasonHeaderBuffer) resetReasonHeader(); reasonHeaderBuffer='';
+          // Agent finished: re-enable send and restore styling
+          agentBusy = false; updateComposerBusyUI();
         }
         else if(t==='web_search_begin'){
           createTool('search', e.msg.call_id, 'web search', '');
@@ -783,13 +822,23 @@ function initSession(){
       return;
     }
     if(e.key==='Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey){
-      e.preventDefault(); const v=(taSend?.value||'').trim(); if(!v) return; sendText(v); if(taSend){ taSend.value=''; autoSizeChat(); }
-      if(queue.length>0){ const next=queue.shift(); if(taSend){ taSend.value=next.text; autoSizeChat(); taSend.focus(); } saveQueue(); renderQueue(); updateQueueVisibility(); }
+      e.preventDefault(); const v=(taSend?.value||'').trim(); if(!v) return;
+      if(agentBusy){
+        // Queue instead of sending when agent is busy
+        addToQueue(v);
+        if(taSend){ taSend.value=''; autoSizeChat(); taSend.focus(); }
+      } else {
+        sendText(v);
+        if(taSend){ taSend.value=''; autoSizeChat(); }
+        if(queue.length>0){ const next=queue.shift(); if(taSend){ taSend.value=next.text; autoSizeChat(); taSend.focus(); } saveQueue(); renderQueue(); updateQueueVisibility(); }
+      }
       return;
     }
   });
   // Load queue from storage
   loadQueue(); renderQueue(); updateQueueVisibility();
+  // Ensure composer buttons reflect idle state on load
+  updateComposerBusyUI();
 
   // Chat autosize: one-line by default, grow with content/newlines
   (function(){
