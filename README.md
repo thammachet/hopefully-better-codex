@@ -1,6 +1,6 @@
 <h1 align="center">OpenAI Codex CLI</h1>
 
-<p align="center"><code>npm i -g @openai/codex</code><br />or <code>brew install codex</code></p>
+<p align="center"><strong>Fork notice:</strong> This repository is a fork of the upstream OpenAI Codex CLI. To use this fork’s changes, <strong>build from source</strong> instead of installing the upstream npm or Homebrew packages.</p>
 
 <p align="center"><strong>Codex CLI</strong> is a coding agent from OpenAI that runs locally on your computer.</br>If you are looking for the <em>cloud-based agent</em> from OpenAI, <strong>Codex Web</strong>, see <a href="https://chatgpt.com/codex">chatgpt.com/codex</a>.</p>
 
@@ -14,32 +14,31 @@
 
 ### Installing and running Codex CLI
 
-Install globally with your preferred package manager. If you use npm:
-
-```shell
-npm install -g @openai/codex
-```
-
-Alternatively, if you use Homebrew:
-
-```shell
-brew install codex
-```
-
-Then simply run `codex` to get started:
-
-```shell
-codex
-```
-
-If you prefer to build from source with Cargo, run the following from the `codex-rs/` directory:
+Recommended for this fork: build from source with Cargo.
 
 ```shell
 cd codex-rs
 cargo install --path cli --profile dev --target-dir ./target
+codex
 ```
 
 This compiles the Rust CLI and installs the `codex` binary into your Cargo bin directory (typically `~/.cargo/bin`).
+
+Alternative (upstream package; not recommended for this fork):
+
+- npm:
+
+  ```shell
+  npm install -g @openai/codex
+  ```
+
+- Homebrew:
+
+  ```shell
+  brew install codex
+  ```
+
+These install the upstream OpenAI package and may not include this fork’s changes.
 
 ### Codex Web (local web UI)
 

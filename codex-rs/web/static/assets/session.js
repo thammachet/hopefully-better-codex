@@ -13,7 +13,16 @@ const DEBUG = (() => {
     return v === '1' || v === 'true';
   }catch{ return false }
 })();
-function dlog(...args){ try{ if(DEBUG) console.log('[codex-session]', ...args); }catch{} }
+let debugLog = [];
+function toStr(x){ try{ return (typeof x==='string') ? x : JSON.stringify(x); } catch{ try{ return String(x); }catch{ return '[unprintable]'; } } }
+function timestamp(){ try{ const d=new Date(); const pad=(n,w=2)=>String(n).padStart(w,'0'); return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(),3)}`; }catch{ return '' } }
+function dlog(...args){
+  try{
+    const line = `${timestamp()} ${args.map(toStr).join(' ')}`;
+    debugLog.push(line);
+    if(DEBUG) console.log('[codex-session]', ...args);
+  }catch{}
+}
 const setPill = (sel, text, kind = 'pill-info') => {
   const el = qs(sel); if(!el) return;
   el.textContent = text;
@@ -370,6 +379,7 @@ function initSession(){
   function connect(){
     const ws=new WebSocket(wsUrl);
     ws.onopen=()=>{
+      dlog('ws open');
       if(wsPill){ wsPill.textContent='WS: connected'; wsPill.classList.remove('pill-warn','pill-muted'); wsPill.classList.add('pill-ok'); }
       // Persisted overrides
       try{
@@ -382,11 +392,11 @@ function initSession(){
         const cwd=qs('#ctx-cwd')?.value||localStorage.getItem('codex-create-cwd'); if(cwd){ ws.send(JSON.stringify({type:'override_turn_context', cwd})); }
       }catch{}
     };
-    ws.onclose=()=>{ if(wsPill){ wsPill.textContent='WS: disconnected'; wsPill.classList.remove('pill-ok'); wsPill.classList.add('pill-warn'); } setTimeout(connect, 800); };
+    ws.onclose=()=>{ dlog('ws close'); if(wsPill){ wsPill.textContent='WS: disconnected'; wsPill.classList.remove('pill-ok'); wsPill.classList.add('pill-warn'); } setTimeout(connect, 800); };
     ws.onmessage=(ev)=>{
       eventsLog.push(ev.data);
       try{
-        const e=JSON.parse(ev.data); const t=e.msg?.type;
+        const e=JSON.parse(ev.data); const t=e.msg?.type; dlog('event', t);
         if(t==='user_message'){ const m=e.msg.message||''; if(lastEchoedUser && m===lastEchoedUser){ lastEchoedUser=null; } else { addUser(m); } }
         else if(t==='agent_message_delta'){ addAssistantDelta(e.msg.delta||''); }
         else if(t==='agent_message'){ addAssistant(e.msg.message||''); }
@@ -481,6 +491,12 @@ function initSession(){
         else if(t==='error'){ addSystem(`error: ${e.msg.message||''}`); }
         else if(t==='session_configured'){
           try{
+            dlog('session_configured', {
+              model: e.msg.model,
+              cwd: e.msg.cwd,
+              init_len: Array.isArray(e.msg.initial_messages)? e.msg.initial_messages.length : 0,
+              init_types: Array.isArray(e.msg.initial_messages)? e.msg.initial_messages.map(im=>im?.type) : null,
+            });
             // Model
             const model = e.msg.model || '';
             const modelSel = qs('#ctx-model');
@@ -607,6 +623,27 @@ function initSession(){
     copyBtn.innerHTML = '<svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M8 7a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-8a2 2 0 0 1-2-2V7zm-3 3h1v7a3 3 0 0 0 3 3h9v1a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V10z"/></svg><span class="label">Copy</span>';
     copyBtn.addEventListener('click',()=>{ try{ navigator.clipboard.writeText(feed.innerText||''); }catch{} });
     qs('.actions')?.prepend(copyBtn);
+  })();
+
+  // Logs viewer
+  (function(){
+    const modal=qs('#log-modal'); const btn=qs('#logs-btn'); const close=qs('#log-close'); const body=qs('#log-body');
+    const includeEvents=qs('#log-include-events'); const refresh=qs('#log-refresh'); const clear=qs('#log-clear'); const copy=qs('#log-copy');
+    function render(){
+      try{
+        const lines = [];
+        for(const s of debugLog){ lines.push(`[debug] ${s}`); }
+        if(includeEvents?.checked){ for(const s of eventsLog){ lines.push(`[event] ${s}`); } }
+        body.textContent = lines.join('\n');
+        body.scrollTop = body.scrollHeight;
+      }catch{}
+    }
+    btn?.addEventListener('click', ()=>{ render(); modal.setAttribute('aria-hidden','false'); });
+    close?.addEventListener('click', ()=> modal.setAttribute('aria-hidden','true'));
+    modal?.addEventListener('click', (e)=>{ if(e.target===modal) modal.setAttribute('aria-hidden','true'); });
+    refresh?.addEventListener('click', render);
+    clear?.addEventListener('click', ()=>{ debugLog.length = 0; render(); });
+    copy?.addEventListener('click', ()=>{ try{ navigator.clipboard.writeText(body.textContent||''); }catch{} });
   })();
   // Context toggle button (mobile)
   (function(){ const ctxToggle=document.createElement('button'); ctxToggle.className='btn ghost'; ctxToggle.textContent='Context'; ctxToggle.title='Show/Hide context'; ctxToggle.addEventListener('click',()=>{ const card=qs('#ctx-card'); const hidden=card.classList.toggle('hidden'); ctxToggle.setAttribute('aria-expanded', String(!hidden)); }); qs('.actions')?.prepend(ctxToggle); })();

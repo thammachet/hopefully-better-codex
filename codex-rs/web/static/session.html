@@ -35,6 +35,10 @@
           <svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12.7 3.3a1 1 0 0 0-1.4 0l-8 8a1 1 0 0 0 0 1.4l8 8a1 1 0 0 0 1.4 0l8-8a1 1 0 0 0 0-1.4l-8-8zm-2.7 7.7a2 2 0 1 1-2-2 2 2 0 0 1 2 2zm2 6a2 2 0 1 1 2 2 2 2 0 0 1-2-2zm1-3a1 1 0 0 1-1-1V9.41l2 2V13a1 1 0 0 1-1 1z"/></svg>
           <span class="label">Git</span>
         </button>
+        <button id="logs-btn" class="btn ghost icon" aria-label="View logs" title="View logs">
+          <svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 5h16a1 1 0 0 1 0 2H4a1 1 0 1 1 0-2zm0 6h16a1 1 0 0 1 0 2H4a1 1 0 1 1 0-2zm0 6h10a1 1 0 0 1 0 2H4a1 1 0 1 1 0-2z"/></svg>
+          <span class="label">Logs</span>
+        </button>
         <button id="theme" class="btn ghost icon" aria-label="Toggle theme" title="Toggle theme">
           <svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 3a9 9 0 0 0 0 18 9 9 0 0 1 0-18z"/></svg>
           <span class="label">Theme</span>
@@ -153,6 +157,20 @@
           <div class="muted" id="git-hint">Runs in current CWD. May require approvals.</div>
         </div>
         <div class="approval-actions"><button id="git-run" class="btn">Run</button><button id="git-cancel" class="btn ghost">Cancel</button></div>
+      </div>
+    </div>
+    <!-- Logs Modal -->
+    <div id="log-modal" class="modal" aria-hidden="true" role="dialog" aria-modal="true" aria-label="Logs">
+      <div class="modal-card" style="padding:12px">
+        <div class="card-head"><h3 style="margin:0">Session Logs</h3><button id="log-close" class="btn ghost">Close</button></div>
+        <div class="muted" style="margin:6px 0">Enable debug with ?debug=1 or localStorage.setItem('codex-debug','1').</div>
+        <div style="display:flex; gap:8px; margin:6px 0; flex-wrap:wrap">
+          <label><input id="log-include-events" type="checkbox" /> Include raw events</label>
+          <button id="log-refresh" class="btn ghost">Refresh</button>
+          <button id="log-clear" class="btn ghost">Clear</button>
+          <button id="log-copy" class="btn ghost">Copy</button>
+        </div>
+        <pre id="log-body" class="pre" style="max-height:50vh; overflow:auto; background:#080b10; color:#fff; border:1px solid var(--line); border-radius:8px; padding:8px"></pre>
       </div>
     </div>
     <!-- Palette and plan rendering moved to /assets/session.js -->
