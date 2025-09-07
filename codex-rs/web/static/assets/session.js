@@ -327,6 +327,7 @@ function initSession(){
 
   // WS
   const wsUrl = `${location.protocol==='https:'?'wss':'ws'}://${location.host}/api/sessions/${encodeURIComponent(id)}/events`;
+  dlog('ws url', wsUrl);
   let eventsLog=[];
   let reasonHeaderBuffer='';
   function extractFirstBold(md){
@@ -378,6 +379,8 @@ function initSession(){
 
   function connect(){
     const ws=new WebSocket(wsUrl);
+    let gotFirstEvent = false;
+    setTimeout(()=>{ if(!gotFirstEvent) dlog('no events received within 2s after ws open'); }, 2000);
     ws.onopen=()=>{
       dlog('ws open');
       if(wsPill){ wsPill.textContent='WS: connected'; wsPill.classList.remove('pill-warn','pill-muted'); wsPill.classList.add('pill-ok'); }
@@ -396,7 +399,10 @@ function initSession(){
     ws.onmessage=(ev)=>{
       eventsLog.push(ev.data);
       try{
-        const e=JSON.parse(ev.data); const t=e.msg?.type; dlog('event', t);
+        const rawPreview = String(ev.data||'').slice(0, 180).replace(/\s+/g,' ');
+        dlog('event raw', rawPreview);
+        const e=JSON.parse(ev.data); const t=e.msg?.type; dlog('event type', t);
+        gotFirstEvent = true;
         if(t==='user_message'){ const m=e.msg.message||''; if(lastEchoedUser && m===lastEchoedUser){ lastEchoedUser=null; } else { addUser(m); } }
         else if(t==='agent_message_delta'){ addAssistantDelta(e.msg.delta||''); }
         else if(t==='agent_message'){ addAssistant(e.msg.message||''); }
