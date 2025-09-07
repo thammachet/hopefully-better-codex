@@ -184,7 +184,30 @@ function initSession(){
     currentAssistantText = text||''; const body=currentAssistant.querySelector('.md'); body.replaceChildren(...renderMarkdown(currentAssistantText).childNodes); maybeAutoScroll(); }
   function addReasoningDelta(delta){ if(!currentTurn){ currentTurn=startTurn(); } if(!currentReason){ currentReason=makeReasoning(); currentTurn.appendChild(currentReason.box); } currentReasonText += delta||''; currentReason.body.replaceChildren(...renderMarkdown(currentReasonText).childNodes); maybeAutoScroll(); }
   function setReasoning(text){ if(!currentTurn){ currentTurn=startTurn(); } if(!currentReason){ currentReason=makeReasoning(); currentTurn.appendChild(currentReason.box); } currentReasonText = text||''; currentReason.body.replaceChildren(...renderMarkdown(currentReasonText).childNodes); maybeAutoScroll(); }
-  function addSystem(text){ const node=renderMarkdown(text); const wrap=makeMsg('system', node, text); if(!currentTurn){ currentTurn=startTurn(); } currentTurn.appendChild(wrap); maybeAutoScroll(); }
+  function addSystem(text){
+    const node=renderMarkdown(text);
+    const wrap=makeMsg('system', node, text);
+    if(!currentTurn){ currentTurn=startTurn(); }
+    currentTurn.appendChild(wrap);
+    try{
+      const md = wrap.querySelector('.md');
+      const t = String(text||'');
+      const lineCount = (t.match(/\n/g)||[]).length + 1;
+      if(t.length > 160 || lineCount > 2){
+        const btn=document.createElement('button');
+        btn.className='show-more';
+        btn.setAttribute('aria-expanded','false');
+        btn.textContent='More';
+        btn.addEventListener('click', ()=>{
+          const on = wrap.classList.toggle('expanded');
+          btn.textContent = on ? 'Less' : 'More';
+          btn.setAttribute('aria-expanded', String(on));
+        });
+        if(md && md.parentElement){ md.parentElement.appendChild(btn); }
+      }
+    }catch{}
+    maybeAutoScroll();
+  }
 
   // Tool/activity renderer
   const activeTools = new Map(); // call_id -> {wrap, head, pre, pill, status, titleEl, subEl, previewEl, kind, collapsed, lineCount, lastLine, exitCode}
@@ -311,7 +334,8 @@ function initSession(){
       // Persisted overrides
       try{
         const effSel=qs('#effort'); const eff=effSel?.value||localStorage.getItem('codex-effort'); if(eff){ ws.send(JSON.stringify({type:'override_turn_context', effort: eff})); }
-        const mSel=qs('#ctx-model'); const mVal=(mSel?.value||localStorage.getItem('codex-create-model')||'gpt-5'); let model=mVal; if(mVal==='custom'){ const mc=qs('#ctx-model-custom')?.value||localStorage.getItem('codex-create-model-custom')||''; if(mc) model=mc; }
+        const mSel=qs('#ctx-model');
+        const model=(mSel?.value||localStorage.getItem('codex-create-model')||'gpt-5');
         if(model){ ws.send(JSON.stringify({type:'override_turn_context', model})); }
         const ap=qs('#ctx-approval')?.value||localStorage.getItem('codex-create-approval'); if(ap){ ws.send(JSON.stringify({type:'override_turn_context', approval_policy: ap})); }
         const sb=qs('#ctx-sandbox')?.value||localStorage.getItem('codex-create-sandbox'); if(sb){ ws.send(JSON.stringify({type:'override_turn_context', sandbox_mode: sb})); }
@@ -419,11 +443,11 @@ function initSession(){
           try{
             // Model
             const model = e.msg.model || '';
-            const modelSel = qs('#ctx-model'); const modelCustom = qs('#ctx-model-custom');
-            if(modelSel){
-              const opt = [...(modelSel.options||[])].find(o=>o.value===model);
-              if(opt){ modelSel.value = model; modelCustom?.classList.add('hidden'); }
-              else { modelSel.value = 'custom'; if(modelCustom){ modelCustom.classList.remove('hidden'); modelCustom.value = model; } }
+            const modelSel = qs('#ctx-model');
+            if(modelSel && model){
+              let opt = [...(modelSel.options||[])].find(o=>o.value===model);
+              if(!opt){ opt = document.createElement('option'); opt.value=model; opt.textContent=model; modelSel.appendChild(opt); }
+              modelSel.value = model;
             }
             setPill('#model-pill', `Model: ${model||'—'}`);
             // Approval
@@ -458,17 +482,19 @@ function initSession(){
 
   // Model/approval/sandbox/cwd controls
   (function(){
-    const modelSel=qs('#ctx-model'); const modelCustom=qs('#ctx-model-custom'); const approvalSel=qs('#ctx-approval'); const sandboxSel=qs('#ctx-sandbox'); const cwdInput=qs('#ctx-cwd');
+    const modelSel=qs('#ctx-model'); const approvalSel=qs('#ctx-approval'); const sandboxSel=qs('#ctx-sandbox'); const cwdInput=qs('#ctx-cwd');
     try{
-      const m=localStorage.getItem('codex-create-model'); if(m && modelSel){ modelSel.value=m; modelCustom?.classList.toggle('hidden', m!=='custom'); }
-      const mc=localStorage.getItem('codex-create-model-custom'); if(mc && modelCustom){ modelCustom.value=mc; }
+      const m=localStorage.getItem('codex-create-model'); if(m && modelSel){
+        const opt=[...(modelSel.options||[])].find(o=>o.value===m);
+        if(opt){ modelSel.value=m; }
+      }
       const ap=localStorage.getItem('codex-create-approval'); if(ap && approvalSel){ approvalSel.value=ap; }
       const sb=localStorage.getItem('codex-create-sandbox'); if(sb && sandboxSel){ sandboxSel.value=sb; }
       const cwd=localStorage.getItem('codex-create-cwd'); if(cwd && cwdInput){ cwdInput.value=cwd; }
     }catch{}
     function refreshPills(){
       if(!modelSel) return;
-      const modelVal = modelSel.value==='custom' ? ((modelCustom?.value)||'custom') : modelSel.value;
+      const modelVal = modelSel.value || '—';
       setPill('#model-pill', `Model: ${modelVal}`);
       if(approvalSel) setPill('#approval-pill', `Approval: ${approvalSel.value}`);
       if(sandboxSel) setPill('#sandbox-pill', `Sandbox: ${sandboxSel.value}`);
@@ -480,11 +506,9 @@ function initSession(){
     updateCwdDatalist();
 
     modelSel?.addEventListener('change', ()=>{
-      if(modelCustom){ modelCustom.classList.toggle('hidden', modelSel.value!=='custom'); }
       try{ localStorage.setItem('codex-create-model', modelSel.value);}catch{}
-      refreshPills(); const val=modelSel.value==='custom'?(modelCustom?.value||null):modelSel.value; if(!window._ws||_ws.readyState!==1) return; if(val) _ws.send(JSON.stringify({type:'override_turn_context', model: val}));
+      refreshPills(); if(!window._ws||_ws.readyState!==1) return; const val=modelSel.value; if(val) _ws.send(JSON.stringify({type:'override_turn_context', model: val}));
     });
-    modelCustom?.addEventListener('input', ()=>{ try{ localStorage.setItem('codex-create-model-custom', modelCustom.value);}catch{} refreshPills(); if(!window._ws||_ws.readyState!==1) return; const v=modelCustom.value.trim(); if(v) _ws.send(JSON.stringify({type:'override_turn_context', model: v})); });
     approvalSel?.addEventListener('change', ()=>{ try{ localStorage.setItem('codex-create-approval', approvalSel.value);}catch{} refreshPills(); if(!window._ws||_ws.readyState!==1) return; _ws.send(JSON.stringify({type:'override_turn_context', approval_policy: approvalSel.value})); });
     sandboxSel?.addEventListener('change', ()=>{ try{ localStorage.setItem('codex-create-sandbox', sandboxSel.value);}catch{} refreshPills(); if(!window._ws||_ws.readyState!==1) return; _ws.send(JSON.stringify({type:'override_turn_context', sandbox_mode: sandboxSel.value})); });
     cwdInput?.addEventListener('change', ()=>{ try{ localStorage.setItem('codex-create-cwd', cwdInput.value);}catch{} refreshPills(); if(!window._ws||_ws.readyState!==1) return; const v=cwdInput.value.trim(); if(v) _ws.send(JSON.stringify({type:'override_turn_context', cwd: v})); });
@@ -514,7 +538,15 @@ function initSession(){
   qs('#interrupt')?.addEventListener('click', ()=>{ if(window._ws && _ws.readyState===1){ _ws.send(JSON.stringify({type:'interrupt'})); } });
   qs('#export')?.addEventListener('click', ()=>{ try{ const blob=new Blob([eventsLog.join('\n')],{type:'application/x-ndjson'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`codex-session-${id}.jsonl`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);}catch{ alert('Export failed'); } });
   // Copy transcript button
-  (function(){ const copyBtn=document.createElement('button'); copyBtn.className='btn ghost'; copyBtn.textContent='Copy'; copyBtn.title='Copy transcript'; copyBtn.addEventListener('click',()=>{ try{ navigator.clipboard.writeText(feed.innerText||''); }catch{} }); qs('.actions')?.prepend(copyBtn); })();
+  (function(){
+    const copyBtn=document.createElement('button');
+    copyBtn.className='btn ghost icon';
+    copyBtn.title='Copy transcript';
+    copyBtn.setAttribute('aria-label','Copy transcript');
+    copyBtn.innerHTML = '<svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M8 7a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-8a2 2 0 0 1-2-2V7zm-3 3h1v7a3 3 0 0 0 3 3h9v1a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V10z"/></svg><span class="label">Copy</span>';
+    copyBtn.addEventListener('click',()=>{ try{ navigator.clipboard.writeText(feed.innerText||''); }catch{} });
+    qs('.actions')?.prepend(copyBtn);
+  })();
   // Context toggle button (mobile)
   (function(){ const ctxToggle=document.createElement('button'); ctxToggle.className='btn ghost'; ctxToggle.textContent='Context'; ctxToggle.title='Show/Hide context'; ctxToggle.addEventListener('click',()=>{ const card=qs('#ctx-card'); const hidden=card.classList.toggle('hidden'); ctxToggle.setAttribute('aria-expanded', String(!hidden)); }); qs('.actions')?.prepend(ctxToggle); })();
 
@@ -740,12 +772,44 @@ initSession();
 // Auto-hide header on scroll (show on scroll up or when cursor near top)
 (function(){
   const header = document.querySelector('.app-header'); if(!header) return;
+  const container = document.querySelector('main.container');
   let last = 0; let hidden = false; let ticking=false;
   const scrollEl = document.querySelector('#feed') || window;
-  function cur(){ return scrollEl===window ? window.pageYOffset || document.documentElement.scrollTop : scrollEl.scrollTop; }
-  function setHidden(h){ if(h===hidden) return; hidden = h; header.classList.toggle('header-hidden', hidden); }
-  function onScroll(){ const y = cur(); if(Math.abs(y-last) < 3) return; if(y > last && y > 12) setHidden(true); else setHidden(false); last = y; }
+
+  function cur(){
+    return scrollEl===window ? (window.pageYOffset || document.documentElement.scrollTop) : scrollEl.scrollTop;
+  }
+
+  // Adjust layout so when header hides, content moves up (no empty gap)
+  function adjustContainerOffset(isHidden){
+    if(!container) return;
+    try{
+      const h = header.offsetHeight || 0;
+      // Use negative margin to pull content up under the hidden header.
+      container.style.marginTop = isHidden ? `-${h}px` : '';
+    }catch{}
+  }
+
+  function setHidden(h){
+    if(h===hidden) return;
+    hidden = h;
+    header.classList.toggle('header-hidden', hidden);
+    adjustContainerOffset(hidden);
+  }
+
+  function onScroll(){
+    const y = cur();
+    if(Math.abs(y-last) < 3) return;
+    if(y > last && y > 12) setHidden(true); else setHidden(false);
+    last = y;
+  }
   function onWheel(){ if(!ticking){ window.requestAnimationFrame(()=>{ onScroll(); ticking=false; }); ticking=true; } }
+
+  // Initial measurement
+  adjustContainerOffset(false);
+  // Recompute on resize (header height can change with breakpoints)
+  window.addEventListener('resize', ()=> adjustContainerOffset(hidden));
+
   (scrollEl===window?window:scrollEl).addEventListener('scroll', onScroll, { passive:true });
   (scrollEl===window?window:scrollEl).addEventListener('wheel', onWheel, { passive:true });
   // Reveal when mouse near top

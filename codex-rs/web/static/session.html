@@ -9,12 +9,6 @@
   </head>
   <body>
     <header class="app-header" role="banner">
-      <div class="brand">
-        <a class="home" href="/" aria-label="Codex Home">
-          <span class="logo">▮</span>
-          <span class="name">Codex</span>
-        </a>
-      </div>
       <nav class="nav" aria-label="Primary"></nav>
       <div class="status" aria-live="polite">
         <span id="ws" class="pill pill-muted" title="WebSocket status">WS: —</span>
@@ -25,11 +19,30 @@
         <span id="cwd-pill" class="pill pill-muted" title="CWD">CWD: —</span>
       </div>
       <div class="actions">
-        <button id="new-session" class="btn ghost" aria-label="New session (same CWD)">New</button>
-        <button id="interrupt" class="btn ghost" aria-label="Interrupt">Interrupt</button>
-        <button id="export" class="btn ghost" aria-label="Export JSONL">Export</button>
-        <button id="git-btn" class="btn ghost" aria-label="Git auto-commit">Git</button>
-        <button id="theme" class="btn ghost" aria-label="Toggle theme">Theme</button>
+        <a id="go-home" class="btn ghost icon" href="/" aria-label="Home" title="Home">
+          <svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3 10.5 12 3l9 7.5V21a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>
+          <span class="label">Home</span>
+        </a>
+        <button id="new-session" class="btn ghost icon" aria-label="New session" title="New session">
+          <svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M11 5h2v14h-2zM5 11h14v2H5z"/></svg>
+          <span class="label">New</span>
+        </button>
+        <button id="interrupt" class="btn ghost icon" aria-label="Interrupt" title="Interrupt">
+          <svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" ry="2" fill="currentColor"/></svg>
+          <span class="label">Interrupt</span>
+        </button>
+        <button id="export" class="btn ghost icon" aria-label="Export JSONL" title="Export JSONL">
+          <svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 3a1 1 0 0 1 1 1v8.586l2.293-2.293 1.414 1.414L12 16.414 7.293 11.707l1.414-1.414L11 12.586V4a1 1 0 0 1 1-1zM5 19a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2h-2v2H7v-2H5v2z"/></svg>
+          <span class="label">Export</span>
+        </button>
+        <button id="git-btn" class="btn ghost icon" aria-label="Git auto-commit" title="Git auto-commit">
+          <svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12.7 3.3a1 1 0 0 0-1.4 0l-8 8a1 1 0 0 0 0 1.4l8 8a1 1 0 0 0 1.4 0l8-8a1 1 0 0 0 0-1.4l-8-8zm-2.7 7.7a2 2 0 1 1-2-2 2 2 0 0 1 2 2zm2 6a2 2 0 1 1 2 2 2 2 0 0 1-2-2zm1-3a1 1 0 0 1-1-1V9.41l2 2V13a1 1 0 0 1-1 1z"/></svg>
+          <span class="label">Git</span>
+        </button>
+        <button id="theme" class="btn ghost icon" aria-label="Toggle theme" title="Toggle theme">
+          <svg class="svg-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 3a9 9 0 0 0 0 18 9 9 0 0 1 0-18z"/></svg>
+          <span class="label">Theme</span>
+        </button>
       </div>
     </header>
     <main class="container" role="main">
@@ -41,12 +54,7 @@
               <option value="gpt-5">gpt-5</option>
               <option value="o3">o3</option>
               <option value="gpt-4o">gpt-4o</option>
-              <option value="custom">Custom…</option>
             </select>
-          </div>
-          <div class="field">
-            <label for="ctx-model-custom">Custom Model</label>
-            <input id="ctx-model-custom" type="text" placeholder="custom model slug" class="hidden" />
           </div>
           <div class="field">
             <label for="effort">Effort</label>

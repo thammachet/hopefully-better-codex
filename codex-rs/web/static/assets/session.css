@@ -1,7 +1,8 @@
 /* Session page overrides and extras. Shared styles live in /assets/index.css */
 
 /* Always-compact header for session page */
-.app-header{ padding:6px 12px !important; grid-template-columns:auto 1fr auto; gap:8px }
+.app-header{ padding:6px 12px !important; grid-template-columns:1fr auto; gap:8px }
+.nav{ display:none }
 .brand .home{ padding:4px 8px; gap:6px; border-radius:8px }
 .brand .logo{ font-size:14px }
 .brand .name{ display:none }
@@ -10,9 +11,16 @@
 #approval-pill, #sandbox-pill, #cwd-pill{ display:none }
 .actions .btn{ padding:6px 8px }
 
+/* Icon buttons in top bar */
+.actions .btn.icon{ display:inline-flex; align-items:center; gap:6px; padding:6px 8px; border-radius:10px }
+.actions .btn.icon .svg-icon{ width:16px; height:16px; display:inline-block; color:currentColor }
+.actions .btn.icon .label{ display:none }
+@media (min-width: 1000px){ .actions .btn.icon .label{ display:inline } }
+
 /* Layout tweaks */
 .controls-card{ margin-bottom:12px }
 .field-wide{ min-width:240px }
+.container{ transition: margin-top var(--fast) ease }
 
 /* Make feed dominate on wide screens */
 .grid2{ grid-template-columns: 2fr 1fr; align-items:start; gap:10px }
@@ -125,3 +133,11 @@
 /* Tighten controls spacing inside controls card if needed */
 .controls{ gap:6px }
 .controls select, .controls input[type=text]{ min-width: 120px }
+
+/* Minimal system message styling */
+.msg-system{ background:transparent; border-left:2px solid var(--line); padding:4px 8px; margin:6px 0 }
+.msg-system .msg-head{ display:none }
+.msg-system::before{ content:'System'; display:inline-block; font-size:11px; color:var(--muted); border:1px solid var(--line); border-radius:999px; padding:1px 6px; margin-right:8px; background:transparent }
+.msg-system .md{ display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; color:var(--muted); font-size:12px }
+.msg-system.expanded .md{ -webkit-line-clamp:unset; display:block }
+.msg-system .show-more{ margin-left:8px; font-size:11px; border:1px solid var(--line); background:transparent; color:var(--fg); border-radius:6px; padding:0 6px; cursor:pointer }
