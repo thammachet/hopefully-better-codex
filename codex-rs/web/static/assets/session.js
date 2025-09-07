@@ -138,6 +138,24 @@ function initSession(){
   const planEl = qs('#plan');
   const reasonPill = qs('#reason-pill');
 
+  // Move reasoning pill next to Chat title in composer
+  try{
+    const composer = qs('.card.composer');
+    const chatTitle = composer ? qs('h3', composer) : null;
+    if(composer && chatTitle && reasonPill){
+      let head = qs(':scope > .card-head', composer);
+      if(!head){
+        head = document.createElement('div');
+        head.className = 'card-head';
+        composer.insertBefore(head, chatTitle);
+      }
+      head.appendChild(chatTitle); // move title into header
+      head.appendChild(reasonPill); // move pill into header
+      // Ensure pill starts with a sane default
+      reasonPill.textContent = 'Reasoning: —';
+    }
+  }catch{}
+
   const id = location.pathname.split('/').pop();
   if(title) title.textContent = `Session ${id}`;
   // On very short viewports, collapse context card by default

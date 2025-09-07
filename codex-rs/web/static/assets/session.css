@@ -2,6 +2,8 @@
 
 /* Always-compact header for session page */
 .app-header{ padding:6px 12px !important; grid-template-columns:1fr auto; gap:8px }
+/* Ensure header grid children can shrink */
+.app-header > *{ min-width:0 }
 .nav{ display:none }
 .brand .home{ padding:4px 8px; gap:6px; border-radius:8px }
 .brand .logo{ font-size:14px }
@@ -93,7 +95,7 @@
 .chip-add{ background:#1a2a1f; color:#9be7a0; border-color:#24422a }
 .chip-rem{ background:#2a1f1f; color:#ffb3b8; border-color:#3c2a2a }
 .patch-diff{ display:none; margin-top:6px }
-.patch-diff pre{ margin:0; background:#080b10; color:#fff }
+.patch-diff pre{ margin:0; background:#080b10; color:#fff; overflow:auto; max-width:100%; white-space:pre }
 .patch-diff code{ color:#fff }
 .patch-file.open .patch-diff{ display:block }
 
@@ -107,6 +109,7 @@
 
 /* Card density tweaks for Session / Chat / Plan */
 .feed-card, .composer, .plan-card{ padding:12px }
+.feed-card, .composer, .plan-card{ min-width:0 }
 .feed{ padding:10px }
 .turn{ padding:8px 6px }
 .msg{ padding:4px 4px }

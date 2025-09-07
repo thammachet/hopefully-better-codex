@@ -140,6 +140,8 @@ input[type=text], select, .filter, .palette-input{
 
 /* Session page helpers */
 .grid2{ display:grid; grid-template-columns: 1fr 1fr; gap:12px }
+/* Allow grid children to shrink so long content doesn’t overflow */
+.grid > *, .grid2 > *{ min-width:0 }
 .feed{ border:1px solid var(--line); border-radius:16px; padding:12px; background:var(--glass); max-height:60vh; overflow:auto }
 .turn{ padding:10px 10px; border-bottom:1px solid var(--line) }
 .msg{ padding:6px 6px }
@@ -148,6 +150,7 @@ input[type=text], select, .filter, .palette-input{
 .msg-assistant .msg-head .who{ color:#9be7a0 }
 .msg-system .msg-head .who{ color:#ffb3b8 }
 .copy-btn{ border:1px solid var(--line); background:transparent; color:var(--fg); border-radius:8px; padding:2px 6px; font-size:11px; cursor:pointer }
+.md{ overflow-wrap:anywhere; word-break:break-word }
 .md p{ margin: 6px 0 }
 .md code{ background: rgba(255,255,255,0.06); padding:0 4px; border-radius:6px }
 .md pre{ background:#080b10; border:1px solid var(--line); border-radius:10px; padding:10px; overflow:auto }
@@ -194,6 +197,8 @@ input[type=text], select, .filter, .palette-input{
 .msg:last-child{ border-bottom:0 }
 .meta{ font-size:12px; color:var(--muted) }
 pre{ margin:6px 0 0; white-space:pre-wrap; word-break:break-word }
+/* Media should never exceed container width */
+img, video, canvas, svg{ max-width:100%; height:auto }
 
 /* Queue styles */
 .queue{ border:1px solid var(--line); border-radius:10px; padding:8px; margin-top:10px; background:rgba(255,255,255,0.02) }
