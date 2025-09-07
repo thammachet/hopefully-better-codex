@@ -188,7 +188,13 @@ function initSession(){
     const node=renderMarkdown(text);
     const wrap=makeMsg('system', node, text);
     if(!currentTurn){ currentTurn=startTurn(); }
-    currentTurn.appendChild(wrap);
+    try{
+      if(currentAssistant && currentAssistant.parentElement===currentTurn){
+        currentTurn.insertBefore(wrap, currentAssistant);
+      } else {
+        currentTurn.appendChild(wrap);
+      }
+    }catch{ currentTurn.appendChild(wrap); }
     try{
       const md = wrap.querySelector('.md');
       const t = String(text||'');
