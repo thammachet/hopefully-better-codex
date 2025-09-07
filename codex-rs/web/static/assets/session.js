@@ -490,6 +490,21 @@ function initSession(){
               // record in history
               try{ const key='codex-cwd-history'; const arr=JSON.parse(localStorage.getItem(key)||'[]'); if(Array.isArray(arr)){ const list=[e.msg.cwd, ...arr.filter(p=>p!==e.msg.cwd)]; localStorage.setItem(key, JSON.stringify(list.slice(0,20))); } }catch{}
             }
+
+            // Render initial history when resuming sessions
+            const init = e.msg.initial_messages || [];
+            if(Array.isArray(init) && init.length){
+              try{
+                for(const im of init){
+                  const tt = im?.type;
+                  if(tt==='user_message'){ addUser(im.message||''); }
+                  else if(tt==='agent_message'){ addAssistant(im.message||''); }
+                  else if(tt==='agent_reasoning'){ setReasoning(im.text||''); }
+                  else if(tt==='agent_reasoning_raw_content'){ addReasoningDelta(im.text||''); }
+                  else if(tt==='web_search_end'){ createTool('search', im.call_id||'', 'web search', im.query||''); }
+                }
+              }catch{}
+            }
           }catch{}
         }
         else if(t==='plan_update'){ renderPlan(e.msg); }
