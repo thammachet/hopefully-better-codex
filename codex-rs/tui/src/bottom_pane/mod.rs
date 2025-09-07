@@ -122,11 +122,20 @@ impl BottomPane {
         // Base height depends on whether a modal/overlay is active.
         let base = match self.active_view.as_ref() {
             Some(view) => view.desired_height(width),
-            None => self.composer.desired_height(width).saturating_add(
-                self.status
+            None => {
+                // Composer + status rows, plus 1 for the model/effort indicator line which is
+                // rendered above the composer when space allows. Including this here ensures we
+                // reserve enough vertical space so the composer can show its bottom hint line
+                // reliably instead of being pushed to the next buffer page.
+                let status_h = self
+                    .status
                     .as_ref()
-                    .map_or(0, |status| status.desired_height(width)),
-            ),
+                    .map_or(0, |status| status.desired_height(width));
+                self.composer
+                    .desired_height(width)
+                    .saturating_add(status_h)
+                    .saturating_add(1) // model indicator row
+            }
         };
         // Account for bottom padding rows. Top spacing is handled in layout().
         base.saturating_add(Self::BOTTOM_PAD_LINES)
