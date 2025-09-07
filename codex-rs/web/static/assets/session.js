@@ -507,6 +507,17 @@ function initSession(){
           agentBusy = false; updateComposerBusyUI();
           setTitleReasoning('done');
         }
+        else if(t==='turn_aborted'){
+          // A running turn was aborted. If it was user-interrupted, clear busy state.
+          const r = (e.msg?.reason||'').toLowerCase();
+          if(r === 'interrupted'){
+            agentBusy = false; updateComposerBusyUI();
+            resetReasonHeader();
+            if(reasonPill) reasonPill.textContent = 'Reasoning: interrupted';
+            setTitleReasoning('interrupted');
+          }
+          // If reason is 'replaced', a new task typically follows immediately; keep busy state.
+        }
         else if(t==='web_search_begin'){
           createTool('search', e.msg.call_id, 'web search', '');
         }
@@ -562,8 +573,27 @@ function initSession(){
           if(e.msg.success) toolOk(e.msg.call_id, 'applied'); else toolErr(e.msg.call_id, 'failed');
         }
         else if(t==='token_count'){
-          const i=e.msg.input_tokens||0; const c=e.msg.cached_input_tokens||0; const o=e.msg.output_tokens||0;
-          if(tokensEl){ tokensEl.textContent=`Tokens: in ${i}${c?` (${c} cached)`:''}, out ${o}`; tokensEl.classList.remove('pill-muted'); tokensEl.classList.add('pill-info'); }
+          // Newer protocol sends `{ info: { total_token_usage, last_token_usage, model_context_window } }`.
+          // Fall back to legacy fields if present.
+          let i=0, c=0, o=0;
+          try{
+            if(e.msg && e.msg.info){
+              const last = e.msg.info.last_token_usage || {};
+              // Display last-turn usage for clearer per-turn feedback.
+              i = Number(last.input_tokens)||0;
+              c = Number(last.cached_input_tokens)||0;
+              o = Number(last.output_tokens)||0;
+            } else {
+              i = Number(e.msg.input_tokens)||0;
+              c = Number(e.msg.cached_input_tokens)||0;
+              o = Number(e.msg.output_tokens)||0;
+            }
+          }catch{}
+          if(tokensEl){
+            tokensEl.textContent = `Tokens: in ${i}${c?` (${c} cached)`:''}, out ${o}`;
+            tokensEl.classList.remove('pill-muted');
+            tokensEl.classList.add('pill-info');
+          }
         }
         else if(t==='background_event'){ addSystem(e.msg.message||''); }
         else if(t==='stream_error'){ addSystem(`stream error: ${e.msg.message||''}`); }

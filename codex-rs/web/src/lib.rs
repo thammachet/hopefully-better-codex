@@ -806,7 +806,8 @@ async fn create_session(
         config_profile: None,
         codex_linux_sandbox_exe: app.codex_linux_sandbox_exe.clone(),
         base_instructions: None,
-        include_plan_tool: None,
+        // Enable the plan tool by default for web sessions so the UI's Plan section is populated.
+        include_plan_tool: Some(true),
         include_apply_patch_tool: None,
         include_view_image_tool: None,
         disable_response_storage: None,
