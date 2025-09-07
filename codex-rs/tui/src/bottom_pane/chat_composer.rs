@@ -1364,49 +1364,86 @@ impl WidgetRef for ChatComposer {
             }
             ActivePopup::None => {
                 let bottom_line_rect = popup_rect;
-                let mut hint: Vec<Span<'static>> = if self.ctrl_c_quit_hint {
+
+                // On Windows consoles, use a simple, reliable hint text that avoids
+                // any non-ASCII symbols to ensure it renders correctly.
+                #[cfg(target_os = "windows")]
+                {
+                    let newline_hint_key = if self.use_shift_enter_hint {
+                        key_hint::shift("Enter")
+                    } else {
+                        key_hint::ctrl('J')
+                    };
+                    let hint: Vec<Span<'static>> = if self.ctrl_c_quit_hint {
+                        vec![
+                            " ".into(),
+                            key_hint::ctrl('C'),
+                            " again".into(),
+                            " to quit".into(),
+                        ]
+                    } else {
+                        vec![
+                            " ".into(),
+                            key_hint::plain("Enter"),
+                            " send   ".into(),
+                            newline_hint_key,
+                            " newline   ".into(),
+                            key_hint::ctrl('T'),
+                            " transcript   ".into(),
+                            key_hint::ctrl('C'),
+                            " quit".into(),
+                        ]
+                    };
+
+                    Line::from(hint)
+                        .style(Style::default().dim())
+                        .render_ref(bottom_line_rect, buf);
+                }
+                if cfg!(not(target_os = "windows")) {
+                    // Non-Windows: preserve unicode Enter glyph and dynamic Ctrl-C followup.
                     let ctrl_c_followup = if self.is_task_running {
                         " to interrupt"
                     } else {
                         " to quit"
                     };
-                    vec![
-                        " ".into(),
-                        key_hint::ctrl('C'),
-                        " again".into(),
-                        ctrl_c_followup.into(),
-                    ]
-                } else {
-                    let newline_hint_key = if self.use_shift_enter_hint {
-                        key_hint::shift('⏎')
+                    let mut hint: Vec<Span<'static>> = if self.ctrl_c_quit_hint {
+                        vec![
+                            " ".into(),
+                            key_hint::ctrl('C'),
+                            " again".into(),
+                            ctrl_c_followup.into(),
+                        ]
                     } else {
-                        key_hint::ctrl('J')
+                        let newline_hint_key = if self.use_shift_enter_hint {
+                            key_hint::shift('⏎')
+                        } else {
+                            key_hint::ctrl('J')
+                        };
+                        vec![
+                            " ".into(),
+                            key_hint::plain('⏎'),
+                            " send   ".into(),
+                            newline_hint_key,
+                            " newline   ".into(),
+                            key_hint::ctrl('T'),
+                            " transcript   ".into(),
+                            key_hint::ctrl('C'),
+                            " quit".into(),
+                        ]
                     };
-                    vec![
-                        " ".into(),
-                        key_hint::plain('⏎'),
-                        " send   ".into(),
-                        newline_hint_key,
-                        " newline   ".into(),
-                        key_hint::ctrl('T'),
-                        " transcript   ".into(),
-                        key_hint::ctrl('C'),
-                        " quit".into(),
-                    ]
-                };
 
-                if !self.ctrl_c_quit_hint && self.esc_backtrack_hint {
-                    hint.push("   ".into());
-                    hint.push(key_hint::plain("Esc"));
-                    hint.push(" edit prev".into());
-                }
+                    if !self.ctrl_c_quit_hint && self.esc_backtrack_hint {
+                        hint.push("   ".into());
+                        hint.push(key_hint::plain("Esc"));
+                        hint.push(" edit prev".into());
+                    }
 
                 // If Esc‑clear is primed, show a short hint: pressing Esc again clears input.
-                if !self.ctrl_c_quit_hint && self.esc_clear_primed_at.is_some() {
-                    hint.push("   ".into());
-                    hint.push(key_hint::plain("Esc"));
-                    hint.push(" again clear".into());
-                }
+                    if !self.ctrl_c_quit_hint && self.esc_clear_primed_at.is_some() {
+                        hint.push("   ".into());
+                        hint.push(key_hint::plain("Esc"));
+                        hint.push(" again clear".into());
+                    }
 
                 // Append token/context usage info to the footer hints when available.
                 if let Some(token_usage_info) = &self.token_usage_info {
@@ -1439,9 +1476,10 @@ impl WidgetRef for ChatComposer {
                     }
                 }
 
-                Line::from(hint)
-                    .style(Style::default().dim())
-                    .render_ref(bottom_line_rect, buf);
+                    Line::from(hint)
+                        .style(Style::default().dim())
+                        .render_ref(bottom_line_rect, buf);
+                }
             }
         }
         let border_style = if self.has_focus {

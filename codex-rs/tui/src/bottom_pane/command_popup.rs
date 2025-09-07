@@ -261,6 +261,20 @@ mod tests {
     }
 
     #[test]
+    fn builtins_include_configuration() {
+        let popup = CommandPopup::new(Vec::new());
+        let items = popup.filtered_items();
+        let has_configuration = items.iter().any(|item| match item {
+            CommandItem::Builtin(cmd) => *cmd == SlashCommand::Configuration,
+            _ => false,
+        });
+        assert!(
+            has_configuration,
+            "expected '/configuration' to be present in built-in commands"
+        );
+    }
+
+    #[test]
     fn prompt_discovery_lists_custom_prompts() {
         let prompts = vec![
             CustomPrompt {
