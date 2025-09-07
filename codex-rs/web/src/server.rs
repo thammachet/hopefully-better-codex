@@ -44,11 +44,15 @@ pub async fn ws_events(
 
 async fn handle_socket(app: Arc<AppState>, session_id: uuid::Uuid, mut socket: WebSocket) {
     // Lookup session and subscribe to its broadcaster.
-    let (mut rx, ops_tx_opt) = {
+    let (mut rx, ops_tx_opt, initial_event_json) = {
         let guard = app.sessions.read().await;
         match guard.get(&session_id) {
-            Some(entry) => (entry.broadcaster.subscribe(), Some(entry.ops_tx.clone())),
-            None => (tokio::sync::broadcast::channel::<String>(1).1, None),
+            Some(entry) => (
+                entry.broadcaster.subscribe(),
+                Some(entry.ops_tx.clone()),
+                entry.initial_event_json.clone(),
+            ),
+            None => (tokio::sync::broadcast::channel::<String>(1).1, None, None),
         }
     };
 
@@ -66,6 +70,10 @@ async fn handle_socket(app: Arc<AppState>, session_id: uuid::Uuid, mut socket: W
 
     // Fan-out task: forward broadcasted events to the websocket.
     let (mut sender, mut receiver) = socket.split();
+    // Send the initial SessionConfigured to the new subscriber so UIs can render history.
+    if let Some(json) = initial_event_json {
+        let _ = sender.send(Message::Text(json)).await;
+    }
     let fwd_task: JoinHandle<()> = tokio::spawn(async move {
         while let Ok(s) = rx.recv().await {
             if sender.send(Message::Text(s)).await.is_err() {

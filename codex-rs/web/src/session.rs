@@ -38,6 +38,7 @@ pub struct SessionEntry {
     pub ops_tx: mpsc::UnboundedSender<ClientMsg>,
     pub _event_task: JoinHandle<()>,
     pub _ops_task: JoinHandle<()>,
+    pub initial_event_json: Option<String>,
 }
 
 // Tasks are spawned inline where the conversation handle is available to avoid

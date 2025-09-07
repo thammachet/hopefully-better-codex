@@ -836,9 +836,13 @@ async fn create_session(
         id: "".to_string(),
         msg: codex_core::protocol::EventMsg::SessionConfigured(conv.session_configured.clone()),
     };
-    if let Ok(json) = serde_json::to_string(&initial) {
-        let _ = tx.send(json);
-    }
+    let initial_event_json = match serde_json::to_string(&initial) {
+        Ok(json) => {
+            let _ = tx.send(json.clone());
+            Some(json)
+        }
+        Err(_) => None,
+    };
     // Event pump task (capture conversation without naming its type)
     let conversation_for_events = conv.conversation.clone();
     let tx_events = tx.clone();
@@ -924,6 +928,7 @@ async fn create_session(
         ops_tx,
         _event_task: event_task,
         _ops_task: ops_task,
+        initial_event_json,
     };
     {
         let mut guard = app.sessions.write().await;
@@ -973,9 +978,13 @@ async fn resume_session(
         id: "".to_string(),
         msg: codex_core::protocol::EventMsg::SessionConfigured(conv.session_configured.clone()),
     };
-    if let Ok(json) = serde_json::to_string(&initial) {
-        let _ = tx.send(json);
-    }
+    let initial_event_json = match serde_json::to_string(&initial) {
+        Ok(json) => {
+            let _ = tx.send(json.clone());
+            Some(json)
+        }
+        Err(_) => None,
+    };
     let conversation_for_events = conv.conversation.clone();
     let tx_events = tx.clone();
     let event_task = tokio::spawn(async move {
@@ -1056,6 +1065,7 @@ async fn resume_session(
         ops_tx,
         _event_task: event_task,
         _ops_task: ops_task,
+        initial_event_json,
     };
     {
         let mut guard = app.sessions.write().await;
