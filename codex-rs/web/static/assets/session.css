@@ -149,7 +149,12 @@
 .new-indicator{ bottom:6px }
 .card h3{ margin:0 0 6px }
 /* composer actions row */
-.composer .right{ display:flex; gap:8px; justify-content:flex-end; margin-top:6px }
+.composer .right{ display:flex; gap:8px; justify-content:flex-end; margin-top:6px; flex-wrap: wrap }
+/* make wrapping look nice on narrow viewports */
+@media (max-width: 700px){
+  .composer .right{ justify-content:flex-start; gap:6px }
+  .composer .right .btn{ padding:8px 10px }
+}
 
 /* Plan visuals: compact items with status accent */
 .plan{ display:flex; flex-direction:column; gap:4px }
