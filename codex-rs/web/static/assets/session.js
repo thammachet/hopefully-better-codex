@@ -962,7 +962,23 @@ function initSession(){
   // Plan rendering
   function renderPlan(data){
     if(!data || !planEl) return;
-    const list=data.plan||[]; planEl.innerHTML='';
+    const list = data.plan || [];
+    planEl.innerHTML = '';
+
+    // Header progress pill
+    try{
+      const pill = qs('#plan-progress');
+      if(pill){
+        const total = list.length;
+        let done = 0, inprog = 0;
+        for(const it of list){ const s=(it.status||'').toLowerCase(); if(s==='completed') done++; else if(s==='in_progress') inprog++; }
+        const base = total ? `${done}/${total} done` : '—';
+        pill.textContent = inprog ? `${base} • ${inprog} in progress` : base;
+        pill.classList.remove('pill-muted');
+        pill.classList.add('pill-info');
+      }
+    }catch{}
+
     list.forEach(item=>{
       const row=document.createElement('div'); row.className='plan-item';
       const step=document.createElement('div'); step.className='plan-step'; step.textContent=item.step||'';
