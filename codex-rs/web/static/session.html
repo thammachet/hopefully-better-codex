@@ -98,9 +98,18 @@
           <h3>Chat</h3>
           <textarea id="chat" rows="1" placeholder="Type your prompt..."></textarea>
           <div class="right">
+            <button id="tpl-btn" class="btn ghost" title="Templates">Templates ▾</button>
             <button id="interrupt" class="btn ghost" aria-label="Interrupt" title="Interrupt">Interrupt</button>
             <button id="queue-add" class="btn ghost" title="Add to queue (Ctrl/Cmd+Enter)">Queue</button>
             <button id="send" class="btn primary" title="Send (Enter)">Send</button>
+          </div>
+          <!-- Templates popover -->
+          <div id="tpl-popover" class="tpl-popover hidden" role="menu" aria-label="Templates">
+            <input id="tpl-search" class="tpl-search" placeholder="Search templates" aria-label="Search templates" />
+            <div id="tpl-list" class="tpl-list" role="listbox" aria-label="Template results"></div>
+            <div class="tpl-foot">
+              <button id="tpl-manage-open" class="btn ghost" type="button">Manage Templates…</button>
+            </div>
           </div>
           <div id="queue" class="queue hidden" aria-label="Queued prompts">
             <div class="queue-head">
@@ -170,6 +179,26 @@
           <button id="log-copy" class="btn ghost">Copy</button>
         </div>
         <pre id="log-body" class="pre" style="max-height:50vh; overflow:auto; background:#080b10; color:#fff; border:1px solid var(--line); border-radius:8px; padding:8px"></pre>
+      </div>
+    </div>
+    <!-- Templates Modal -->
+    <div id="tpl-modal" class="modal" aria-hidden="true" role="dialog" aria-modal="true" aria-label="Templates">
+      <div class="modal-card" style="padding:12px">
+        <div class="card-head"><h3 style="margin:0">Templates</h3><button id="tpl-close" class="btn ghost">Close</button></div>
+        <div style="display:flex; flex-direction:column; gap:8px; padding:10px 0">
+          <form id="tpl-form">
+            <label for="tpl-name">Name</label>
+            <input id="tpl-name" type="text" placeholder="Name" required />
+            <label for="tpl-content">Content</label>
+            <textarea id="tpl-content" rows="4" placeholder="Content" required></textarea>
+            <input type="hidden" id="tpl-id" />
+            <div class="right" style="margin:8px 0 0">
+              <button id="tpl-save" class="btn" type="submit">Save</button>
+              <button id="tpl-cancel" class="btn ghost" type="button">Cancel</button>
+            </div>
+          </form>
+          <div class="list" id="tpl-manage-list" aria-label="Saved templates" role="list"></div>
+        </div>
       </div>
     </div>
     <!-- Palette and plan rendering moved to /assets/session.js -->

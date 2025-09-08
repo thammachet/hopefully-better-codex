@@ -904,6 +904,165 @@ function initSession(){
     setTimeout(autosize, 0);
   })();
 
+  // Templates (localStorage-only)
+  (function(){
+    const btn = qs('#tpl-btn');
+    const pop = qs('#tpl-popover');
+    const search = qs('#tpl-search');
+    const list = qs('#tpl-list');
+    const manageOpen = qs('#tpl-manage-open');
+    const ta = qs('#chat');
+    if(!btn || !pop || !search || !list || !manageOpen || !ta) return;
+
+    const KEY = 'codex:templates:v1';
+    function load(){ try{ const raw=localStorage.getItem(KEY); const arr=JSON.parse(raw||'[]'); return Array.isArray(arr)?arr:[]; }catch{ return []; } }
+    function save(arr){ try{ localStorage.setItem(KEY, JSON.stringify(arr||[])); }catch{} }
+    function uid(){ return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`; }
+
+    // Seed defaults once
+    if(!localStorage.getItem(KEY)){
+      save([
+        { id: uid(), name: 'Greeting', content: 'Hi! Quick update:' },
+        { id: uid(), name: 'Follow-up', content: 'Following up on my last message.' },
+      ]);
+    }
+
+    function insertTemplate(text){
+      if(!ta) return;
+      const focused = document.activeElement === ta;
+      const start = focused ? ta.selectionStart : ta.value.length;
+      const end = focused ? ta.selectionEnd : ta.value.length;
+      const before = ta.value.slice(0, start);
+      const after = ta.value.slice(end);
+      const next = before + String(text||'') + after;
+      const caret = before.length + String(text||'').length;
+      ta.value = next;
+      ta.focus();
+      try{ ta.setSelectionRange(caret, caret); }catch{}
+      // Resize to fit
+      ta.dispatchEvent(new Event('input'));
+    }
+
+    function escapeHtml(s){ return String(s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+    function currentFiltered(){
+      const q = (search.value||'').toLowerCase();
+      const base = load();
+      if(!q) return base;
+      return base.filter(t => (t.name||'').toLowerCase().includes(q) || (t.content||'').toLowerCase().includes(q));
+    }
+
+    function renderPopover(){
+      const tpls = currentFiltered();
+      list.innerHTML = '';
+      if(!tpls.length){ const d=document.createElement('div'); d.className='muted'; d.textContent='No templates'; list.appendChild(d); return; }
+      tpls.slice(0, 100).forEach(t => {
+        const b=document.createElement('button'); b.type='button'; b.className='tpl-item'; b.setAttribute('role','option'); b.dataset.id=t.id;
+        const name=document.createElement('div'); name.className='name'; name.textContent=t.name||'';
+        const prev=document.createElement('div'); prev.className='prev'; prev.innerHTML = escapeHtml(String(t.content||'').slice(0, 100)) + ((t.content||'').length>100?'...':'');
+        b.append(name, prev);
+        list.appendChild(b);
+      });
+    }
+
+    function positionPopover(){
+      try{
+        const r = btn.getBoundingClientRect();
+        pop.style.left = `${Math.round(r.left)}px`;
+        pop.style.top = `${Math.round(r.bottom + 4)}px`;
+      }catch{}
+    }
+    function showPopover(){ pop.classList.remove('hidden'); positionPopover(); search.value=''; renderPopover(); search.focus(); document.addEventListener('pointerdown', outsideClose, { capture: true }); }
+    function hidePopover(){ pop.classList.add('hidden'); document.removeEventListener('pointerdown', outsideClose, { capture: true }); }
+    function outsideClose(e){
+      if(pop.classList.contains('hidden')) return;
+      try{
+        const path = (typeof e.composedPath === 'function') ? e.composedPath() : [];
+        if((path && (path.includes(pop) || path.includes(btn))) || pop.contains(e.target) || e.target===btn){ return; }
+      }catch{}
+      hidePopover();
+    }
+
+    btn.addEventListener('click', ()=>{ if(pop.classList.contains('hidden')) showPopover(); else hidePopover(); });
+    search.addEventListener('input', renderPopover);
+    // Delegate clicks in case items are re-rendered
+    list.addEventListener('click', (e)=>{
+      const item = e.target && e.target.closest && e.target.closest('.tpl-item');
+      if(!item) return;
+      const id = item.dataset.id;
+      const arr = currentFiltered();
+      const t = arr.find(x=>x.id===id);
+      if(t){ insertTemplate(t.content||''); hidePopover(); }
+    });
+    window.addEventListener('resize', ()=>{ if(!pop.classList.contains('hidden')) positionPopover(); });
+    window.addEventListener('keydown', (e)=>{ if(e.key==='Escape' && !pop.classList.contains('hidden')) hidePopover(); });
+
+    // Manage modal
+    const modal = qs('#tpl-modal');
+    const mClose = qs('#tpl-close');
+    const mForm = qs('#tpl-form');
+    const mName = qs('#tpl-name');
+    const mContent = qs('#tpl-content');
+    const mId = qs('#tpl-id');
+    const mCancel = qs('#tpl-cancel');
+    const mList = qs('#tpl-manage-list');
+
+    function openModal(){ modal.setAttribute('aria-hidden','false'); renderManage(); mName.focus(); }
+    function closeModal(){ modal.setAttribute('aria-hidden','true'); mForm.reset(); mId.value=''; }
+    function renderManage(){
+      const tpls = load();
+      mList.innerHTML = '';
+      if(!tpls.length){ const d=document.createElement('div'); d.className='muted'; d.style.padding='8px 0'; d.textContent='No templates yet.'; mList.appendChild(d); return; }
+      tpls.forEach(t=>{
+        const row=document.createElement('div'); row.className='rowi';
+        const left=document.createElement('div');
+        const nm=document.createElement('div'); nm.className='name'; nm.textContent=t.name||'';
+        const pr=document.createElement('div'); pr.className='muted'; pr.textContent=(t.content||'').replace(/\s+/g,' ').slice(0, 160) + ((t.content||'').length>160?'...':'');
+        left.append(nm, pr);
+        const actions=document.createElement('div');
+        const be=document.createElement('button'); be.className='btn ghost'; be.textContent='Edit'; be.addEventListener('click', ()=>{ mId.value=t.id; mName.value=t.name||''; mContent.value=t.content||''; mName.focus(); });
+        const bd=document.createElement('button'); bd.className='btn ghost'; bd.textContent='Delete'; bd.addEventListener('click', ()=>{ const arr=load(); const i=arr.findIndex(x=>x.id===t.id); if(i>=0){ arr.splice(i,1); save(arr); renderManage(); renderPopover(); } });
+        actions.append(be, bd);
+        row.append(left, actions);
+        mList.append(row);
+      });
+    }
+
+    manageOpen.addEventListener('click', ()=>{ hidePopover(); openModal(); });
+    mClose?.addEventListener('click', closeModal);
+    mCancel?.addEventListener('click', closeModal);
+    modal?.addEventListener('click', (e)=>{ if(e.target===modal) closeModal(); });
+
+    mForm?.addEventListener('submit', (e)=>{
+      e.preventDefault();
+      const name = (mName.value||'').trim();
+      const content = String(mContent.value||'');
+      if(!name || !content) return;
+      const arr = load();
+      const exists = arr.find(t => (t.name||'').toLowerCase() === name.toLowerCase() && t.id !== mId.value);
+      if(exists){ alert('Template name must be unique.'); return; }
+      if(mId.value){
+        const i = arr.findIndex(t=> t.id === mId.value);
+        if(i>=0) arr[i] = { ...arr[i], name, content };
+      } else {
+        arr.unshift({ id: uid(), name, content });
+      }
+      save(arr);
+      mId.value=''; mForm.reset();
+      renderManage(); renderPopover();
+    });
+
+    // Alt+1..9 inserts top templates; respects current filter when popover open
+    window.addEventListener('keydown', (e)=>{
+      if(!e.altKey) return;
+      const n = Number(e.key);
+      if(!(n>=1 && n<=9)) return;
+      const src = pop.classList.contains('hidden') ? load() : currentFiltered();
+      const t = src[n-1];
+      if(t){ insertTemplate(t.content||''); e.preventDefault(); }
+    });
+  })();
+
   // Command palette (simple)
   (function(){
     const modal=qs('#palette-modal'); const input=qs('#palette-input'); const list=qs('#palette-list');

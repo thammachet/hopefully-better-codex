@@ -33,6 +33,21 @@
 #chat{ width:100%; min-height:36px; max-height:40vh; resize:none; overflow:hidden; border-radius:10px; border:1px solid var(--line); background:var(--bg-soft); color:var(--fg); padding:6px 10px; line-height:1.35 }
 #chat:focus{ outline:2px solid var(--accent); outline-offset:2px }
 
+/* Templates popover */
+.tpl-popover{ position:fixed; z-index:15; width:320px; max-width:95vw; border:1px solid var(--line); border-radius:10px; background:var(--bg-soft); color:var(--fg); box-shadow:var(--shadow); padding:8px; }
+.tpl-search{ width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--fg); }
+.tpl-list{ display:flex; flex-direction:column; gap:4px; margin-top:6px; max-height:40vh; overflow:auto }
+.tpl-item{ display:block; width:100%; text-align:left; border:1px solid var(--line); background:transparent; color:var(--fg); border-radius:8px; padding:6px 8px; cursor:pointer }
+.tpl-item:hover{ background:rgba(255,255,255,0.04) }
+.tpl-item .name{ font-weight:600 }
+.tpl-item .prev{ opacity:.7; font-size:.9em }
+.tpl-foot{ display:flex; justify-content:flex-end; margin-top:6px }
+
+/* Prevent hover-induced jitter from transforms */
+#tpl-btn:hover{ transform:none }
+#tpl-popover .btn:hover{ transform:none }
+.composer:hover{ transform:none }
+
 /* Mobile refinements */
 @media (max-width: 900px){
   .grid2{ grid-template-columns: 1fr }
