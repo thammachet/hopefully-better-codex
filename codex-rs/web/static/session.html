@@ -98,11 +98,15 @@
           <h3>Chat</h3>
           <textarea id="chat" rows="1" placeholder="Type your prompt..."></textarea>
           <div class="right">
+            <button id="attach" class="btn ghost" title="Attach images">Attach</button>
             <button id="tpl-btn" class="btn ghost" title="Templates">Templates ▾</button>
             <button id="interrupt" class="btn ghost" aria-label="Interrupt" title="Interrupt">Interrupt</button>
             <button id="queue-add" class="btn ghost" title="Add to queue (Ctrl/Cmd+Enter)">Queue</button>
             <button id="send" class="btn primary" title="Send (Enter)">Send</button>
           </div>
+          <input id="img-input" type="file" accept="image/*" multiple hidden />
+          <div id="attach-strip" class="attach-strip" aria-label="Attached images" role="list"></div>
+          <div id="drop-zone" class="drop-zone" aria-hidden="true">Drop images to attach</div>
           <!-- Templates popover -->
           <div id="tpl-popover" class="tpl-popover hidden" role="menu" aria-label="Templates">
             <input id="tpl-search" class="tpl-search" placeholder="Search templates" aria-label="Search templates" />

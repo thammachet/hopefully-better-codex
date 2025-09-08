@@ -48,6 +48,20 @@
 #tpl-popover .btn:hover{ transform:none }
 .composer:hover{ transform:none }
 
+/* Attachments */
+.attach-strip{ display:flex; gap:8px; flex-wrap:wrap; margin-top:8px }
+.thumb{ position:relative; border:1px solid var(--line); border-radius:8px; overflow:hidden; background:rgba(255,255,255,0.02) }
+.thumb img{ display:block; width:96px; height:72px; object-fit:cover; background:#111 }
+.thumb .meta{ position:absolute; left:4px; bottom:4px; right:24px; font-size:10px; color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.6); overflow:hidden; white-space:nowrap; text-overflow:ellipsis }
+.thumb .del{ position:absolute; top:4px; right:4px; border:1px solid var(--line); background:rgba(0,0,0,.5); color:#fff; border-radius:999px; width:20px; height:20px; font-size:12px; line-height:18px; text-align:center; cursor:pointer }
+
+.drop-zone{ display:none; position:absolute; inset:auto 0 0 0; height:48px; border:2px dashed var(--line); border-radius:10px; margin-top:8px; align-items:center; justify-content:center; color:var(--muted); background:rgba(255,255,255,0.02) }
+.drop-zone.active{ display:flex }
+
+/* Feed image grid */
+.user-images{ display:flex; gap:8px; flex-wrap:wrap; margin-top:6px }
+.user-images img{ max-width:160px; max-height:120px; border-radius:8px; border:1px solid var(--line); background:#111; cursor:pointer }
+
 /* Mobile refinements */
 @media (max-width: 900px){
   .grid2{ grid-template-columns: 1fr }

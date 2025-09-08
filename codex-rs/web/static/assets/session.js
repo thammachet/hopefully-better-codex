@@ -221,7 +221,18 @@ function initSession(){
   qs('#scroll-new')?.addEventListener('click',()=>{ feed.scrollTop=feed.scrollHeight; autoScroll=true; if(newInd) newInd.style.display='none'; });
 
   let currentTurn=null; let currentAssistant=null; let currentAssistantText=''; let currentReason=null; let currentReasonText=''; let assistantHadDelta=false;
-  function addUser(text){ const node=renderMarkdown(text); const wrap=makeMsg('user', node, text); currentTurn=startTurn(); currentTurn.appendChild(wrap); currentAssistant=null; currentReason=null; currentAssistantText=''; currentReasonText=''; assistantHadDelta=false; maybeAutoScroll(); }
+  function addUser(text, images){
+    const node=renderMarkdown(text);
+    try{
+      if(images && Array.isArray(images) && images.length){
+        const grid=document.createElement('div'); grid.className='user-images';
+        images.forEach((src)=>{ try{ const img=document.createElement('img'); img.src=src; img.alt='attachment'; img.addEventListener('click', ()=>{ try{ window.open(src, '_blank'); }catch{} }); grid.appendChild(img); }catch{} });
+        node.appendChild(grid);
+      }
+    }catch{}
+    const wrap=makeMsg('user', node, text);
+    currentTurn=startTurn(); currentTurn.appendChild(wrap); currentAssistant=null; currentReason=null; currentAssistantText=''; currentReasonText=''; assistantHadDelta=false; maybeAutoScroll();
+  }
   function addAssistantDelta(delta){ if(!currentTurn){ currentTurn=startTurn(); } if(!currentAssistant){ currentAssistantText=''; const node=renderMarkdown(''); currentAssistant=makeMsg('assistant', node, ''); currentTurn.appendChild(currentAssistant); } assistantHadDelta=true; currentAssistantText += delta||''; const body=currentAssistant.querySelector('.md'); body.replaceChildren(...renderMarkdown(currentAssistantText).childNodes); maybeAutoScroll(); }
   function addAssistant(text){ if(!currentTurn){ currentTurn=startTurn(); } if(!currentAssistant){ const node=renderMarkdown(''); currentAssistant=makeMsg('assistant', node, ''); currentTurn.appendChild(currentAssistant); } // Final message: replace with full text to avoid duplicates
     currentAssistantText = text||''; const body=currentAssistant.querySelector('.md'); body.replaceChildren(...renderMarkdown(currentAssistantText).childNodes); maybeAutoScroll(); }
@@ -855,10 +866,19 @@ function initSession(){
       actions.append(btnUse, btnSend, btnUp, btnDown, btnDel); row.append(text, actions); queueListEl.append(row);
     }); updateQueueVisibility(); }
   function addToQueue(text){ if(!text || !text.trim()) return; queue.push({id:String(Date.now()), text:text.trim()}); saveQueue(); renderQueue(); updateQueueVisibility(); }
-  function sendText(text){ const s=(text||'').trim(); if(!s||!window._ws||_ws.readyState!==1) return; addUser(s); lastEchoedUser = s; _ws.send(JSON.stringify({type:'user_message', text:s})); }
+  function sendText(text, images){
+    const s=(text||'').trim();
+    const imgs = Array.isArray(images) ? images.filter(Boolean) : [];
+    if(!s && imgs.length===0) return;
+    if(!window._ws || _ws.readyState!==1){ alert('WebSocket not connected'); return; }
+    addUser(s, imgs);
+    lastEchoedUser = s || null;
+    try{ _ws.send(JSON.stringify(imgs.length ? {type:'user_message', text:s||'', images: imgs} : {type:'user_message', text:s||''})); }catch{}
+  }
   function autoSizeChat(){ try{ const ta=qs('#chat'); if(!ta) return; ta.style.height='auto'; const max=Math.max(100, Math.round(window.innerHeight*0.4)); const h=Math.min(ta.scrollHeight, max); ta.style.height=`${h}px`; }catch{} }
   // Wire send button
-  qs('#send')?.addEventListener('click', ()=>{ const txt=(taSend?.value||'').trim(); if(!txt) return; sendText(txt); if(taSend){ taSend.value=''; autoSizeChat(); }
+  qs('#send')?.addEventListener('click', ()=>{ const txt=(taSend?.value||'').trim(); if(!txt && (!attachments||attachments.length===0)) return; sendText(txt, (attachments||[]).map(a=>a.dataUrl)); if(taSend){ taSend.value=''; autoSizeChat(); }
+    clearAttachments();
     if(queue.length>0){ const next=queue.shift(); if(taSend){ taSend.value=next.text; autoSizeChat(); taSend.focus(); } saveQueue(); renderQueue(); updateQueueVisibility(); }
   });
   // Queue button
@@ -870,13 +890,14 @@ function initSession(){
       return;
     }
     if(e.key==='Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey){
-      e.preventDefault(); const v=(taSend?.value||'').trim(); if(!v) return;
+      e.preventDefault(); const v=(taSend?.value||'').trim(); if(!v && (!attachments||attachments.length===0)) return;
       if(agentBusy){
         // Queue instead of sending when agent is busy
         addToQueue(v);
         if(taSend){ taSend.value=''; autoSizeChat(); taSend.focus(); }
       } else {
-        sendText(v);
+        sendText(v, (attachments||[]).map(a=>a.dataUrl));
+        clearAttachments();
         if(taSend){ taSend.value=''; autoSizeChat(); }
         if(queue.length>0){ const next=queue.shift(); if(taSend){ taSend.value=next.text; autoSizeChat(); taSend.focus(); } saveQueue(); renderQueue(); updateQueueVisibility(); }
       }
@@ -903,6 +924,57 @@ function initSession(){
     ta.addEventListener('paste', ()=> setTimeout(autosize, 0));
     setTimeout(autosize, 0);
   })();
+
+  // Image attachments (enabled by default)
+  let attachments = [];
+  (function(){
+    const MAX_FILES = 10;
+    const MAX_SIZE = 4 * 1024 * 1024; // 4MB per file
+    const btn = qs('#attach'); const input=qs('#img-input'); const strip=qs('#attach-strip'); const dz=qs('#drop-zone');
+    if(!btn || !input || !strip) return;
+
+    const isImg = (f)=> /^image\//.test(f.type || '');
+    function uid(){ return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`; }
+    function render(){ if(!strip) return; strip.innerHTML=''; attachments.forEach(att=>{ const box=document.createElement('div'); box.className='thumb'; box.setAttribute('role','listitem'); const img=document.createElement('img'); img.src=att.dataUrl; img.alt=att.name||'image'; const meta=document.createElement('div'); meta.className='meta'; meta.textContent = `${att.name||''}`; const del=document.createElement('button'); del.className='del'; del.type='button'; del.setAttribute('aria-label','Remove'); del.textContent='×'; del.addEventListener('click', ()=>{ attachments = attachments.filter(x=>x.id!==att.id); render(); }); box.append(img, meta, del); strip.appendChild(box); }); }
+    function clear(){ attachments=[]; render(); }
+    function error(msg){ try{ alert(msg); }catch{} }
+    function readFile(f){ return new Promise((resolve, reject)=>{ const fr=new FileReader(); fr.onload=()=>resolve(fr.result); fr.onerror=()=>reject(fr.error||new Error('read failed')); fr.readAsDataURL(f); }); }
+    async function addFiles(files){
+      const list = Array.from(files||[]).filter(isImg);
+      if(!list.length) return;
+      if(attachments.length + list.length > MAX_FILES){ error(`Max ${MAX_FILES} images`); return; }
+      for(const f of list){ if(f.size > MAX_SIZE){ error(`Image too large: ${f.name}`); continue; }
+        try{ const dataUrl = await readFile(f); attachments.push({ id: uid(), name: f.name, type: f.type, size: f.size, dataUrl }); }
+        catch{ error(`Failed to read ${f.name}`); }
+      }
+      render();
+    }
+    function onDrop(e){ e.preventDefault(); e.stopPropagation(); dz?.classList.remove('active'); const dt=e.dataTransfer; if(dt?.files){ addFiles(dt.files); } }
+    function onDragOver(e){ e.preventDefault(); e.stopPropagation(); dz?.classList.add('active'); }
+    function onDragLeave(e){ e.preventDefault(); e.stopPropagation(); dz?.classList.remove('active'); }
+
+    btn.addEventListener('click', ()=> input.click());
+    input.addEventListener('change', ()=>{ addFiles(input.files); input.value=''; });
+
+    const composer = qs('.card.composer');
+    if(composer){ composer.addEventListener('dragover', onDragOver); composer.addEventListener('dragleave', onDragLeave); composer.addEventListener('drop', onDrop); }
+    // Paste from clipboard on chat
+    const chat = qs('#chat');
+    chat?.addEventListener('paste', (e)=>{
+      try{
+        const items = e.clipboardData?.items || [];
+        const files = [];
+        for(const it of items){ if(it.kind==='file'){ const f = it.getAsFile(); if(f && isImg(f)) files.push(f); } }
+        if(files.length){ e.preventDefault(); addFiles(files); }
+      }catch{}
+    });
+
+    // Expose helpers for outer scope
+    window.__codex_get_attachments = () => attachments.map(a=>a.dataUrl);
+    window.__codex_clear_attachments = () => { clear(); };
+  })();
+
+  function clearAttachments(){ try{ if(typeof window.__codex_clear_attachments==='function') window.__codex_clear_attachments(); }catch{} }
 
   // Templates (localStorage-only)
   (function(){
