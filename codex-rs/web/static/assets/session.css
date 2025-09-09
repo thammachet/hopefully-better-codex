@@ -21,6 +21,7 @@
 
 /* Layout tweaks */
 .controls-card{ margin-bottom:12px }
+.header-toggle-row{ display:flex; justify-content:flex-end; margin-bottom:8px }
 .field-wide{ min-width:240px }
 .container{ transition: margin-top var(--fast) ease }
 

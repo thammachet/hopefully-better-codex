@@ -201,6 +201,23 @@ function initSession(){
   adjustFeedHeight();
   let rh=null; window.addEventListener('resize', ()=>{ clearTimeout(rh); rh=setTimeout(adjustFeedHeight, 100); });
 
+  // Header manual toggle (replaces auto-hide)
+  (function(){
+    try{
+      const header = document.querySelector('.app-header');
+      const container = document.querySelector('main.container');
+      const btn = qs('#header-toggle');
+      if(!header || !container || !btn) return;
+      function adjust(isHidden){ try{ const h = header.offsetHeight || 0; container.style.marginTop = isHidden ? `-${h}px` : ''; }catch{} }
+      function setHidden(h){ header.classList.toggle('header-hidden', h); adjust(h); try{ localStorage.setItem('codex-header-hidden', h ? '1' : '0'); }catch{} btn.textContent = h ? 'Show Top Bar' : 'Hide Top Bar'; }
+      const saved = (()=>{ try{ const v=localStorage.getItem('codex-header-hidden'); return v==='1' || v==='true'; }catch{ return false } })();
+      // Defer initial adjust to ensure header height is measured correctly
+      setTimeout(()=> setHidden(saved), 0);
+      btn.addEventListener('click', ()=>{ const on = header.classList.contains('header-hidden'); setHidden(!on); });
+      window.addEventListener('resize', ()=>{ const on = header.classList.contains('header-hidden'); adjust(on); });
+    }catch{}
+  })();
+
   // Feed helpers
   function makeMsg(who, contentNode, rawText){
     const wrap=document.createElement('div'); wrap.className=`msg msg-${who}`;
@@ -1232,50 +1249,4 @@ function initSession(){
 initTheme();
 initSession();
 
-// Auto-hide header on scroll (show on scroll up or when cursor near top)
-(function(){
-  const header = document.querySelector('.app-header'); if(!header) return;
-  const container = document.querySelector('main.container');
-  let last = 0; let hidden = false; let ticking=false;
-  const scrollEl = document.querySelector('#feed') || window;
 
-  function cur(){
-    return scrollEl===window ? (window.pageYOffset || document.documentElement.scrollTop) : scrollEl.scrollTop;
-  }
-
-  // Adjust layout so when header hides, content moves up (no empty gap)
-  function adjustContainerOffset(isHidden){
-    if(!container) return;
-    try{
-      const h = header.offsetHeight || 0;
-      // Use negative margin to pull content up under the hidden header.
-      container.style.marginTop = isHidden ? `-${h}px` : '';
-    }catch{}
-  }
-
-  function setHidden(h){
-    if(h===hidden) return;
-    hidden = h;
-    header.classList.toggle('header-hidden', hidden);
-    adjustContainerOffset(hidden);
-  }
-
-  function onScroll(){
-    const y = cur();
-    if(Math.abs(y-last) < 3) return;
-    if(y > last && y > 12) setHidden(true); else setHidden(false);
-    last = y;
-  }
-  function onWheel(){ if(!ticking){ window.requestAnimationFrame(()=>{ onScroll(); ticking=false; }); ticking=true; } }
-
-  // Initial measurement
-  adjustContainerOffset(false);
-  // Recompute on resize (header height can change with breakpoints)
-  window.addEventListener('resize', ()=> adjustContainerOffset(hidden));
-
-  (scrollEl===window?window:scrollEl).addEventListener('scroll', onScroll, { passive:true });
-  (scrollEl===window?window:scrollEl).addEventListener('wheel', onWheel, { passive:true });
-  // Reveal when mouse near top
-  window.addEventListener('mousemove', (e)=>{ if(e.clientY < 16) setHidden(false); });
-  header.addEventListener('mouseenter', ()=> setHidden(false));
-})();
