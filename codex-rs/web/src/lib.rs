@@ -924,6 +924,7 @@ async fn create_session(
                             model,
                             effort,
                             summary: None,
+                            default_exec_timeout_ms: None,
                         })
                         .await;
                 }
@@ -1063,6 +1064,7 @@ async fn resume_session(
                             model,
                             effort,
                             summary: None,
+                            default_exec_timeout_ms: None,
                         })
                         .await;
                 }

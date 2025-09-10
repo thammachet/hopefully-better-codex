@@ -390,6 +390,7 @@ async fn overrides_turn_context_but_keeps_cached_prefix_and_key_constant() {
             model: Some("o3".to_string()),
             effort: Some(ReasoningEffort::High),
             summary: Some(ReasoningSummary::Detailed),
+            default_exec_timeout_ms: None,
         })
         .await
         .unwrap();

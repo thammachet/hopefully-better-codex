@@ -477,11 +477,8 @@ impl Session {
             sandbox_policy,
             shell_environment_policy: config.shell_environment_policy.clone(),
             cwd,
-<<<<<<< HEAD
-=======
             disable_response_storage,
             default_exec_timeout_ms: config.default_exec_timeout_ms,
->>>>>>> 5c4afa76 (Add override default run timeout setting using /configuration slash command)
         };
 
         let sess = Arc::new(Session {
@@ -1102,6 +1099,7 @@ async fn submission_loop(
                 model,
                 effort,
                 summary,
+                default_exec_timeout_ms,
             } => {
                 // Recalculate the persistent turn context with provided overrides.
                 let prev = Arc::clone(&turn_context);
@@ -1166,7 +1164,8 @@ async fn submission_loop(
                     shell_environment_policy: prev.shell_environment_policy.clone(),
                     cwd: new_cwd.clone(),
                     disable_response_storage: prev.disable_response_storage,
-                    default_exec_timeout_ms: prev.default_exec_timeout_ms,
+                    default_exec_timeout_ms: default_exec_timeout_ms
+                        .unwrap_or(prev.default_exec_timeout_ms),
                 };
 
                 // Install the new persistent context for subsequent tasks/turns.

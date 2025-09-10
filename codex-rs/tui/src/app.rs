@@ -368,7 +368,7 @@ impl App {
                 // Inform the user
                 let msg = match timeout_opt {
                     Some(ms) => {
-                        format!("Saved default exec timeout = {ms} ms (applies to new sessions)")
+                        format!("Saved default exec timeout = {ms} ms (applies immediately)")
                     }
                     None => "Reset default exec timeout (using compiled default)".to_string(),
                 };

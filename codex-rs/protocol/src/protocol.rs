@@ -117,6 +117,16 @@ pub enum Op {
         /// Updated reasoning summary preference (honored only for reasoning-capable models).
         #[serde(skip_serializing_if = "Option::is_none")]
         summary: Option<ReasoningSummaryConfig>,
+
+        /// Updated default exec timeout (milliseconds) applied when a specific
+        /// tool call does not set `timeout_ms`.
+        ///
+        /// Tri-state semantics:
+        /// - `None`: do not change the current default
+        /// - `Some(Some(v))`: set the default to `v`
+        /// - `Some(None)`: clear the default (use compiled fallback)
+        #[serde(skip_serializing_if = "Option::is_none")]
+        default_exec_timeout_ms: Option<Option<u64>>,
     },
 
     /// Approve a command execution

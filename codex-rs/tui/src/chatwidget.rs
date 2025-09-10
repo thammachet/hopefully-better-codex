@@ -1307,6 +1307,7 @@ impl ChatWidget {
                     model: Some(model_slug.clone()),
                     effort: Some(effort),
                     summary: None,
+                    default_exec_timeout_ms: None,
                 }));
                 tx.send(AppEvent::UpdateModel(model_slug.clone()));
                 tx.send(AppEvent::UpdateReasoningEffort(effort));
@@ -1355,6 +1356,7 @@ impl ChatWidget {
                     model: None,
                     effort: None,
                     summary: None,
+                    default_exec_timeout_ms: None,
                 }));
                 tx.send(AppEvent::UpdateAskForApprovalPolicy(approval));
                 tx.send(AppEvent::UpdateSandboxPolicy(sandbox.clone()));
@@ -1412,7 +1414,20 @@ impl ChatWidget {
             }
 
             match parse_timeout(&text) {
-                Ok(ms) => tx.send(AppEvent::UpdateDefaultExecTimeoutMs(Some(ms))),
+                Ok(ms) => {
+                    // Apply immediately to the current session via turn-context override
+                    tx.send(AppEvent::CodexOp(Op::OverrideTurnContext {
+                        cwd: None,
+                        approval_policy: None,
+                        sandbox_policy: None,
+                        model: None,
+                        effort: None,
+                        summary: None,
+                        default_exec_timeout_ms: Some(Some(ms)),
+                    }));
+                    // Persist to config.toml and update TUI config copy
+                    tx.send(AppEvent::UpdateDefaultExecTimeoutMs(Some(ms)))
+                }
                 Err(msg) => tx.send(AppEvent::InsertHistoryCell(Box::new(
                     crate::history_cell::new_error_event(format!("Invalid timeout: {msg}")),
                 ))),
