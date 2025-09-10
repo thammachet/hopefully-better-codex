@@ -477,7 +477,6 @@ impl Session {
             sandbox_policy,
             shell_environment_policy: config.shell_environment_policy.clone(),
             cwd,
-            disable_response_storage,
             default_exec_timeout_ms: config.default_exec_timeout_ms,
         };
 
@@ -1163,7 +1162,6 @@ async fn submission_loop(
                     sandbox_policy: new_sandbox_policy.clone(),
                     shell_environment_policy: prev.shell_environment_policy.clone(),
                     cwd: new_cwd.clone(),
-                    disable_response_storage: prev.disable_response_storage,
                     default_exec_timeout_ms: default_exec_timeout_ms
                         .unwrap_or(prev.default_exec_timeout_ms),
                 };
@@ -1247,7 +1245,6 @@ async fn submission_loop(
                         sandbox_policy,
                         shell_environment_policy: turn_context.shell_environment_policy.clone(),
                         cwd,
-                        disable_response_storage: turn_context.disable_response_storage,
                         default_exec_timeout_ms: turn_context.default_exec_timeout_ms,
                     };
                     // TODO: record the new environment context in the conversation history

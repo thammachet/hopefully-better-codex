@@ -1438,43 +1438,43 @@ impl WidgetRef for ChatComposer {
                         hint.push(" edit prev".into());
                     }
 
-                // If Esc‑clear is primed, show a short hint: pressing Esc again clears input.
+                    // If Esc‑clear is primed, show a short hint: pressing Esc again clears input.
                     if !self.ctrl_c_quit_hint && self.esc_clear_primed_at.is_some() {
                         hint.push("   ".into());
                         hint.push(key_hint::plain("Esc"));
                         hint.push(" again clear".into());
                     }
 
-                // Append token/context usage info to the footer hints when available.
-                if let Some(token_usage_info) = &self.token_usage_info {
-                    let token_usage = &token_usage_info.total_token_usage;
-                    hint.push("   ".into());
-                    hint.push(
-                        Span::from(format!(
-                            "{} tokens used",
-                            format_si_suffix(token_usage.blended_total())
-                        ))
-                        .style(Style::default().add_modifier(Modifier::DIM)),
-                    );
-                    let last_token_usage = &token_usage_info.last_token_usage;
-                    if let Some(context_window) = token_usage_info.model_context_window {
-                        let percent_remaining: u8 = if context_window > 0 {
-                            last_token_usage.percent_of_context_window_remaining(context_window)
-                        } else {
-                            100
-                        };
-                        let context_style = if percent_remaining < 20 {
-                            Style::default().fg(Color::Yellow)
-                        } else {
-                            Style::default().add_modifier(Modifier::DIM)
-                        };
+                    // Append token/context usage info to the footer hints when available.
+                    if let Some(token_usage_info) = &self.token_usage_info {
+                        let token_usage = &token_usage_info.total_token_usage;
                         hint.push("   ".into());
-                        hint.push(Span::styled(
-                            format!("{percent_remaining}% context left"),
-                            context_style,
-                        ));
+                        hint.push(
+                            Span::from(format!(
+                                "{} tokens used",
+                                format_si_suffix(token_usage.blended_total())
+                            ))
+                            .style(Style::default().add_modifier(Modifier::DIM)),
+                        );
+                        let last_token_usage = &token_usage_info.last_token_usage;
+                        if let Some(context_window) = token_usage_info.model_context_window {
+                            let percent_remaining: u8 = if context_window > 0 {
+                                last_token_usage.percent_of_context_window_remaining(context_window)
+                            } else {
+                                100
+                            };
+                            let context_style = if percent_remaining < 20 {
+                                Style::default().fg(Color::Yellow)
+                            } else {
+                                Style::default().add_modifier(Modifier::DIM)
+                            };
+                            hint.push("   ".into());
+                            hint.push(Span::styled(
+                                format!("{percent_remaining}% context left"),
+                                context_style,
+                            ));
+                        }
                     }
-                }
 
                     Line::from(hint)
                         .style(Style::default().dim())

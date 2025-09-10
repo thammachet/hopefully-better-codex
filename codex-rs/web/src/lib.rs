@@ -706,7 +706,6 @@ async fn start_login(
     let mut opts = codex_login::ServerOptions::new(
         config.codex_home.clone(),
         codex_login::CLIENT_ID.to_string(),
-        config.responses_originator_header.clone(),
     );
     opts.open_browser = false;
 
@@ -810,7 +809,6 @@ async fn create_session(
         include_plan_tool: Some(true),
         include_apply_patch_tool: None,
         include_view_image_tool: None,
-        disable_response_storage: None,
         show_raw_agent_reasoning: None,
         tools_web_search_request: None,
     };
@@ -824,11 +822,8 @@ async fn create_session(
         })?;
 
     // Initialize AuthManager per server and spawn session.
-    let auth_manager = codex_core::AuthManager::shared(
-        config.codex_home.clone(),
-        config.preferred_auth_method,
-        config.responses_originator_header.clone(),
-    );
+    let auth_manager =
+        codex_core::AuthManager::shared(config.codex_home.clone(), config.preferred_auth_method);
 
     let cm = codex_core::ConversationManager::new(auth_manager.clone());
     let conv = cm.new_conversation(config).await.map_err(|e| {
@@ -942,11 +937,11 @@ async fn create_session(
     };
     {
         let mut guard = app.sessions.write().await;
-        guard.insert(conv.conversation_id, entry);
+        guard.insert(conv.conversation_id.into(), entry);
     }
 
     Ok(Json(CreateSessionResp {
-        session_id: conv.conversation_id,
+        session_id: conv.conversation_id.into(),
     }))
 }
 
@@ -967,11 +962,8 @@ async fn resume_session(
                 format!("config error: {e}"),
             )
         })?;
-    let auth_manager = codex_core::AuthManager::shared(
-        config.codex_home.clone(),
-        config.preferred_auth_method,
-        config.responses_originator_header.clone(),
-    );
+    let auth_manager =
+        codex_core::AuthManager::shared(config.codex_home.clone(), config.preferred_auth_method);
     let cm = codex_core::ConversationManager::new(auth_manager.clone());
     let conv = cm
         .resume_conversation_from_rollout(config, req.path.clone(), auth_manager)
@@ -1080,10 +1072,10 @@ async fn resume_session(
     };
     {
         let mut guard = app.sessions.write().await;
-        guard.insert(conv.conversation_id, entry);
+        guard.insert(conv.conversation_id.into(), entry);
     }
     Ok(Json(CreateSessionResp {
-        session_id: conv.conversation_id,
+        session_id: conv.conversation_id.into(),
     }))
 }
 
