@@ -166,6 +166,63 @@ Notes:
 - Resuming via `-c experimental_resume="<path>"` preserves the same `conversation_id`.
 - Default behavior remains unchanged unless you pass `--session-summary`.
 
+### Advanced: Controller → Worker Orchestration
+
+Use a “Controller” Codex to plan work and a “Worker” Codex to execute steps while preserving the Worker’s history across runs.
+
+- Pattern:
+  - Controller produces a single imperative one‑line instruction.
+  - Worker executes that instruction under `codex exec -c experimental_resume="<rollout.jsonl>"` so its conversation history is chained.
+
+- PowerShell SOP (persist Worker once, then reuse):
+
+  ```powershell
+  # Ensure storage for rollout pointers
+  New-Item -ItemType Directory -Force .codex | Out-Null
+
+  # Start Worker if missing and persist its rollout
+  if (-not (Test-Path .codex/worker.rollout)) {
+    $w = codex exec --session-summary --session-summary-format json "Worker: reply READY" |
+      ConvertFrom-Json | Where-Object { $_.type -eq 'session_summary' } | Select-Object -First 1
+    if (-not $w) { throw "Failed to start worker Codex" }
+    Set-Content -Path .codex/worker.rollout -Value $w.rollout_path
+  }
+  $WORKER_ROLLOUT = Get-Content .codex/worker.rollout -Raw
+
+  # Controller: emit a single one‑line instruction
+  codex exec --output-last-message ctrl_last.txt "Manager: output a single, imperative one‑line instruction for the Worker. No preamble."
+  $INSTR = Get-Content ctrl_last.txt -Raw
+
+  # Worker: execute with chained history
+  codex exec --full-auto -c experimental_resume="$WORKER_ROLLOUT" $INSTR
+  ```
+
+- POSIX SOP (uses jq):
+
+  ```sh
+  mkdir -p .codex
+  if [ ! -f .codex/worker.rollout ]; then
+    ROLLOUT=$(codex exec --session-summary --session-summary-format json "Worker: reply READY" \
+      | jq -r 'select(.type=="session_summary") | .rollout_path' | head -n1)
+    [ -z "$ROLLOUT" ] && { echo "Failed to start worker Codex" >&2; exit 1; }
+    printf '%s' "$ROLLOUT" > .codex/worker.rollout
+  fi
+  WORKER_ROLLOUT=$(cat .codex/worker.rollout)
+
+  # Controller → Worker handoff
+  codex exec --output-last-message ctrl_last.txt "Manager: output a single, imperative one‑line instruction for the Worker. No preamble."
+  INSTR=$(cat ctrl_last.txt)
+  codex exec --full-auto -c experimental_resume="$WORKER_ROLLOUT" "$INSTR"
+  ```
+
+- Prompting the Controller (suggested):
+  - “You are the Controller for a separate Worker Codex in the project root. Output exactly one imperative one‑line instruction for the Worker (no prose). Prefer safe, idempotent steps; specify exact commands/paths; if info is missing, instruct the Worker to gather it first (e.g., run tests, scan files). When the goal is fully complete, output exactly: DONE.”
+
+- Notes:
+  - Keep the same `$WORKER_ROLLOUT` to chain Worker history.
+  - Use `--output-last-message` to capture the Controller’s one‑liner cleanly.
+  - For deeper orchestration, consider `codex proto` to route messages programmatically.
+
 ## License
 
 This repository is licensed under the [Apache-2.0 License](LICENSE).
