@@ -925,9 +925,55 @@ function initSession(){
       actions.append(btnUse, btnSend, btnUp, btnDown, btnDel); row.append(text, actions); queueListEl.append(row);
     }); updateQueueVisibility(); }
   function addToQueue(text){ if(!text || !text.trim()) return; queue.push({id:String(Date.now()), text:text.trim()}); saveQueue(); renderQueue(); updateQueueVisibility(); }
+  // Always-include state (per-session)
+  const includeEnabledEl = qs('#include-enabled');
+  const includeTextEl = qs('#include-text');
+  const includeCountEl = qs('#include-count');
+  const includeKey = (name)=> `session:${id||'session'}:include.${name}`;
+  function loadInclude(){
+    try{
+      const en = sessionStorage.getItem(includeKey('enabled'));
+      const txt = sessionStorage.getItem(includeKey('text'));
+      if(includeEnabledEl){ includeEnabledEl.checked = en === '1' || en === 'true'; }
+      if(includeTextEl && typeof txt === 'string'){ includeTextEl.value = txt; }
+      updateIncludeCounter();
+    }catch{}
+  }
+  function saveInclude(){
+    try{
+      if(includeEnabledEl){ sessionStorage.setItem(includeKey('enabled'), includeEnabledEl.checked ? '1' : '0'); }
+      if(includeTextEl){ sessionStorage.setItem(includeKey('text'), includeTextEl.value || ''); }
+      updateIncludeCounter();
+    }catch{}
+  }
+  function getIncludeState(){
+    const enabled = !!includeEnabledEl?.checked;
+    const text = (includeTextEl?.value||'').trim();
+    return { enabled, text };
+  }
+  function composeWithInclude(base){
+    const baseText = (base||'').trim();
+    const { enabled, text } = getIncludeState();
+    if(!enabled || !text){ return baseText; }
+    if(!baseText) return text;
+    return `${baseText}\n\n${text}`;
+  }
+  function updateIncludeCounter(){
+    try{
+      if(!includeCountEl || !includeTextEl) return;
+      const len = (includeTextEl.value||'').length;
+      includeCountEl.textContent = `${len} chars`;
+    }catch{}
+  }
+  // Wire include controls
+  includeEnabledEl?.addEventListener('change', saveInclude);
+  includeTextEl?.addEventListener('input', saveInclude);
+  loadInclude();
+
   function sendText(text, images){
-    const s=(text||'').trim();
+    const sRaw=(text||'').trim();
     const imgs = Array.isArray(images) ? images.filter(Boolean) : [];
+    const s = composeWithInclude(sRaw);
     if(!s && imgs.length===0) return;
     if(!window._ws || _ws.readyState!==1){ alert('WebSocket not connected'); return; }
     addUser(s, imgs);
