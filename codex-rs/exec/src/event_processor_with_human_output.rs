@@ -687,5 +687,5 @@ fn shell_quote(s: &str) -> String {
         return "''".to_string();
     }
     let escaped = s.replace('\'', "'\\''");
-    format!("'{}'", escaped)
+    format!("'{escaped}'")
 }
