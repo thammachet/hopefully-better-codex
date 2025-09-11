@@ -319,4 +319,18 @@ mod tests {
             "prompt with builtin name should be ignored"
         );
     }
+
+    #[test]
+    fn builtins_include_ai_git_commit_push() {
+        let popup = CommandPopup::new(Vec::new());
+        let items = popup.filtered_items();
+        let has_cmd = items.iter().any(|item| match item {
+            CommandItem::Builtin(cmd) => cmd.command() == "ai-git-commit-push",
+            _ => false,
+        });
+        assert!(
+            has_cmd,
+            "expected '/ai-git-commit-push' in built-in commands"
+        );
+    }
 }

@@ -219,7 +219,6 @@ impl RolloutRecorder {
 
     pub(crate) async fn get_rollout_history(path: &Path) -> std::io::Result<InitialHistory> {
         info!("Resuming rollout from {path:?}");
-        tracing::error!("Resuming rollout from {path:?}");
         let text = tokio::fs::read_to_string(path).await?;
         if text.trim().is_empty() {
             return Err(IoError::other("empty session file"));
@@ -243,7 +242,7 @@ impl RolloutRecorder {
             match serde_json::from_value::<RolloutLine>(v.clone()) {
                 Ok(rollout_line) => match rollout_line.item {
                     RolloutItem::SessionMeta(session_meta_line) => {
-                        tracing::error!(
+                        info!(
                             "Parsed conversation ID from rollout file: {:?}",
                             session_meta_line.meta.id
                         );
@@ -263,7 +262,7 @@ impl RolloutRecorder {
             }
         }
 
-        tracing::error!(
+        info!(
             "Resumed rollout with {} items, conversation ID: {:?}",
             items.len(),
             conversation_id

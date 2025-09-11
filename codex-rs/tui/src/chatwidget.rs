@@ -268,7 +268,7 @@ impl ChatWidget {
     /// Finalize any active exec as failed, push an error message into history,
     /// and stop/clear running UI state.
     fn finalize_turn_with_error_message(&mut self, message: String) {
-        // Ensure any spinner is replaced by a red ✗ and flushed into history.
+        // Ensure any spinner is replaced by a red âœ— and flushed into history.
         self.finalize_active_exec_cell_as_failed();
         // Emit the provided error message/history cell.
         self.add_to_history(history_cell::new_error_event(message));
@@ -289,7 +289,7 @@ impl ChatWidget {
 
     /// Handle a turn aborted due to user interrupt (Esc).
     /// When there are queued user messages, restore them into the composer
-    /// separated by newlines rather than auto‑submitting the next one.
+    /// separated by newlines rather than autoâ€‘submitting the next one.
     fn on_interrupted_turn(&mut self) {
         // Finalize, log a gentle prompt, and clear running state.
         self.finalize_turn_with_error_message("Tell the model what to do differently".to_owned());
@@ -880,6 +880,29 @@ impl ChatWidget {
                     tx.send(AppEvent::DiffResult(text));
                 });
             }
+            SlashCommand::AiGitCommitPush => {
+                let cwd_str = self.config.cwd.display().to_string();
+                let steps: [&str; 4] = [
+                    "git pull --rebase",
+                    "git add -A",
+                    "git commit -m \"<AUTO_MESSAGE>\" || true",
+                    "git push",
+                ];
+                let mut parts: Vec<String> = Vec::new();
+                parts
+                    .push("Please perform a Git auto-commit in the current workspace.".to_string());
+                if !cwd_str.is_empty() {
+                    parts.push(format!("CWD: {}", cwd_str));
+                }
+                parts.push("Generate a concise, conventional commit message summarizing the staged changes (feat/fix/chore with scope if applicable, ~72-char subject). Replace <AUTO_MESSAGE> with your message.".to_string());
+                parts.push("Steps:".to_string());
+                for s in steps.iter() {
+                    parts.push(format!("- {}", s));
+                }
+                parts.push("Use the default remote/branch. If pull fails due to divergence, attempt a rebase.".to_string());
+                let instruct = parts.join("\n");
+                self.submit_text_message(instruct);
+            }
             SlashCommand::Mention => {
                 self.insert_str("@");
             }
@@ -948,7 +971,7 @@ impl ChatWidget {
             );
             true
         } else {
-            // Also expire the Esc‑clear hint right before drawing if its window elapsed.
+            // Also expire the Escâ€‘clear hint right before drawing if its window elapsed.
             // Unlike paste-burst ticks, we still proceed to draw the frame.
             let _ = self.bottom_pane.expire_esc_clear_hint_if_due();
             false
@@ -1216,7 +1239,7 @@ impl ChatWidget {
         match event.kind {
             Some(InputMessageKind::EnvironmentContext)
             | Some(InputMessageKind::UserInstructions) => {
-                // Skip XML‑wrapped context blocks in the transcript.
+                // Skip XMLâ€‘wrapped context blocks in the transcript.
             }
             Some(InputMessageKind::Plain) | None => {
                 let message = event.message.trim();
@@ -1231,7 +1254,7 @@ impl ChatWidget {
         self.frame_requester.schedule_frame();
     }
 
-    /// Mark the active exec cell as failed (✗) and flush it into history.
+    /// Mark the active exec cell as failed (âœ—) and flush it into history.
     fn finalize_active_exec_cell_as_failed(&mut self) {
         if let Some(cell) = self.active_exec_cell.take() {
             let cell = cell.into_failed();
@@ -1436,7 +1459,7 @@ impl ChatWidget {
 
         self.bottom_pane.show_text_input_view(
             "Set default exec timeout".to_string(),
-            Some("Examples: 15000, 15s, 2m (range: 500ms–30m)".to_string()),
+            Some("Examples: 15000, 15s, 2m (range: 500msâ€“30m)".to_string()),
             Some("Enter to save, Esc to cancel".to_string()),
             initial_text,
             Box::new(on_accept),

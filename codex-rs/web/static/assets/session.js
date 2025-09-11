@@ -1,4 +1,4 @@
-// Session page module: extracted from inline scripts in session.html
+﻿// Session page module: extracted from inline scripts in session.html
 // Keeps behavior parity while improving structure and layout.
 
 // ---------- Utils ----------
@@ -163,7 +163,7 @@ function initSession(){
   function setTitleReasoning(text){
     try{
       const t = (text||'').toString().trim();
-      document.title = t ? `${t} — Codex Session` : baseTitle;
+      document.title = t ? `${t} â€” Codex Session` : baseTitle;
     }catch{}
   }
 
@@ -181,7 +181,7 @@ function initSession(){
       head.appendChild(chatTitle); // move title into header
       head.appendChild(reasonPill); // move pill into header
       // Ensure pill starts with a sane default
-      reasonPill.textContent = 'Reasoning: —';
+      reasonPill.textContent = 'Reasoning: â€”';
     }
   }catch{}
 
@@ -318,9 +318,9 @@ function initSession(){
   }
   function bumpGroupCount(){ try{ currentToolCount++; const pill=currentToolGroup?.querySelector('.tool-group-head .pill'); if(pill) pill.textContent=String(currentToolCount); }catch{} }
   function safeCreateIcon(kind){ const span=document.createElement('span'); span.className='tool-icn'; let txt='*'; if(kind==='exec') txt='>'; else if(kind==='patch') txt='+/-'; else if(kind==='search') txt='?'; else if(kind==='mcp') txt='@'; span.textContent=txt; return span; }
-  function createIcon(kind){ const span=document.createElement('span'); span.className='tool-icn'; let txt=''; if(kind==='exec') txt='›'; else if(kind==='patch') txt='±'; else if(kind==='search') txt='🔎'; else if(kind==='mcp') txt='🔌'; else txt='•'; span.textContent=txt; return span; }
+  function createIcon(kind){ const span=document.createElement('span'); span.className='tool-icn'; let txt=''; if(kind==='exec') txt='â€º'; else if(kind==='patch') txt='Â±'; else if(kind==='search') txt='ðŸ”Ž'; else if(kind==='mcp') txt='ðŸ”Œ'; else txt='â€¢'; span.textContent=txt; return span; }
   function toggleCollapsed(obj, to){ const next=(to===undefined)?!obj.collapsed:!!to; obj.collapsed=next; obj.wrap.classList.toggle('collapsed', next); obj.head?.setAttribute('aria-expanded', String(!next)); }
-  function updateExecPreview(obj){ if(!obj) return; const count=obj.lineCount||0; const code=obj.exitCode; if(code===undefined || code===null){ obj.previewEl.textContent = count>0 ? `${count} lines…` : 'running…'; } else if(code===0){ obj.previewEl.textContent = count>0 ? `${count} lines output` : 'no output'; } else { const last=(obj.lastLine||'').trim(); obj.previewEl.textContent = last ? last : `exit ${code}`; } }
+  function updateExecPreview(obj){ if(!obj) return; const count=obj.lineCount||0; const code=obj.exitCode; if(code===undefined || code===null){ obj.previewEl.textContent = count>0 ? `${count} linesâ€¦` : 'runningâ€¦'; } else if(code===0){ obj.previewEl.textContent = count>0 ? `${count} lines output` : 'no output'; } else { const last=(obj.lastLine||'').trim(); obj.previewEl.textContent = last ? last : `exit ${code}`; } }
   function createTool(kind, callId, title, sub){
     const wrap=document.createElement('div'); wrap.className='tool'; wrap.setAttribute('data-kind', kind); wrap.setAttribute('data-id', callId||'');
     const head=document.createElement('div'); head.className='tool-head';
@@ -328,7 +328,7 @@ function initSession(){
     const icn=safeCreateIcon(kind);
     const sep2=document.createElement('span'); sep2.className='tool-sep'; sep2.textContent='|';
     const titleEl=document.createElement('div'); titleEl.className='tool-title'; titleEl.textContent=title;
-    const sep=document.createElement('span'); sep.className='tool-sep'; sep.textContent='•';
+    const sep=document.createElement('span'); sep.className='tool-sep'; sep.textContent='â€¢';
     const subEl=document.createElement('div'); subEl.className='tool-sub'; subEl.textContent=sub||'';
     const previewEl=document.createElement('span'); previewEl.className='tool-preview'; previewEl.textContent='';
     if(sub){ left.append(icn, titleEl, sep2, subEl, previewEl); } else { left.append(icn, titleEl, previewEl); }
@@ -373,10 +373,10 @@ function initSession(){
   }
   function showReasonHeader(){
     const header = extractFirstBold(reasonHeaderBuffer);
-    if(reasonPill) reasonPill.textContent = `Reasoning: ${header||'working…'}`;
-    setTitleReasoning(header||'working…');
+    if(reasonPill) reasonPill.textContent = `Reasoning: ${header||'workingâ€¦'}`;
+    setTitleReasoning(header||'workingâ€¦');
   }
-  function resetReasonHeader(){ if(reasonPill) reasonPill.textContent='Reasoning: —'; }
+  function resetReasonHeader(){ if(reasonPill) reasonPill.textContent='Reasoning: â€”'; }
   function decodeChunk(x){
     try{
       if(x==null) return '';
@@ -387,7 +387,7 @@ function initSession(){
         return new TextDecoder().decode(new Uint8Array(x.data));
       }
       if(typeof x === 'string'){
-        // base64 string → bytes → utf-8
+        // base64 string â†’ bytes â†’ utf-8
         const bin = atob(x);
         const bytes = new Uint8Array([...bin].map(c=>c.charCodeAt(0)));
         return new TextDecoder().decode(bytes);
@@ -430,11 +430,11 @@ function initSession(){
         sendBtn.disabled = true;
         sendBtn.classList.remove('primary');
         sendBtn.classList.add('ghost');
-        sendBtn.title = 'Agent is working — add to queue instead';
+        sendBtn.title = 'Agent is working â€” add to queue instead';
         queueBtn.classList.remove('ghost');
         queueBtn.classList.add('primary');
-        queueBtn.title = 'Queued — will send after current task';
-        ta?.setAttribute('aria-label', 'Agent busy — text will be queued');
+        queueBtn.title = 'Queued â€” will send after current task';
+        ta?.setAttribute('aria-label', 'Agent busy â€” text will be queued');
         if(compactBtn){ compactBtn.disabled = true; }
       } else {
         // Restore defaults
@@ -446,7 +446,7 @@ function initSession(){
         queueBtn.classList.add('ghost');
         sendBtn.title = 'Send (Enter)';
         queueBtn.title = 'Add to queue (Ctrl/Cmd+Enter)';
-        ta?.setAttribute('aria-label', 'Type your prompt…');
+        ta?.setAttribute('aria-label', 'Type your promptâ€¦');
         if(compactBtn){ compactBtn.disabled = false; }
       }
     }catch{}
@@ -529,7 +529,7 @@ function initSession(){
           // Agent started working: disable send and highlight queue
           agentBusy = true; updateComposerBusyUI();
           /* optional: show meta */ reasonHeaderBuffer=''; resetReasonHeader();
-          setTitleReasoning('working…');
+          setTitleReasoning('workingâ€¦');
         }
         else if(t==='task_complete'){
           // Some backends include last_agent_message here; avoid duplicates if we already rendered the assistant content.
@@ -601,7 +601,7 @@ function initSession(){
           const ok = e.msg.result && !e.msg.result.is_error; const tool=activeTools.get(e.msg.call_id); if(tool){ tool.previewEl.textContent = ok? 'ok' : 'error'; } if(ok) toolOk(e.msg.call_id, 'ok'); else toolErr(e.msg.call_id, 'error');
         }
         else if(t==='patch_apply_begin'){
-          const changes=e.msg.changes||{}; const n=Object.keys(changes).length; const sub=e.msg.auto_approved?`auto-approved • ${n} files`:`${n} files`;
+          const changes=e.msg.changes||{}; const n=Object.keys(changes).length; const sub=e.msg.auto_approved?`auto-approved â€¢ ${n} files`:`${n} files`;
           createTool('patch', e.msg.call_id, 'apply_patch', sub);
         }
         else if(t==='patch_apply_end'){
@@ -654,7 +654,7 @@ function initSession(){
                 if(!shouldHighlight){ compactBtn.classList.add('ghost'); }
                 // Hint in title
                 compactBtn.title = shouldHighlight
-                  ? `Summarize conversation (recommended · ${pctLeft}% context left)`
+                  ? `Summarize conversation (recommended Â· ${pctLeft}% context left)`
                   : 'Summarize conversation to reduce tokens';
               }
             }
@@ -679,7 +679,7 @@ function initSession(){
               if(!opt){ opt = document.createElement('option'); opt.value=model; opt.textContent=model; modelSel.appendChild(opt); }
               modelSel.value = model;
             }
-            setPill('#model-pill', `Model: ${model||'—'}`);
+            setPill('#model-pill', `Model: ${model||'â€”'}`);
             // Approval
             if(e.msg.approval_policy){ const apSel = qs('#ctx-approval'); if(apSel){ apSel.value = e.msg.approval_policy; } setPill('#approval-pill', `Approval: ${e.msg.approval_policy}`); }
             // Sandbox
@@ -742,11 +742,11 @@ function initSession(){
     }catch{}
     function refreshPills(){
       if(!modelSel) return;
-      const modelVal = modelSel.value || '—';
+      const modelVal = modelSel.value || 'â€”';
       setPill('#model-pill', `Model: ${modelVal}`);
       if(approvalSel) setPill('#approval-pill', `Approval: ${approvalSel.value}`);
       if(sandboxSel) setPill('#sandbox-pill', `Sandbox: ${sandboxSel.value}`);
-      if(cwdInput){ const val=cwdInput.value||'—'; setPill('#cwd-pill', `CWD: ${val}`); }
+      if(cwdInput){ const val=cwdInput.value||'â€”'; setPill('#cwd-pill', `CWD: ${val}`); }
     }
     refreshPills();
     function getCwdHistory(){ try{ const arr = JSON.parse(localStorage.getItem('codex-cwd-history')||'[]'); return Array.isArray(arr)?arr:[]; }catch{ return []; } }
@@ -765,14 +765,14 @@ function initSession(){
   // Actions
   // New session: carry current page context (cwd, model, approval, sandbox)
   qs('#new-session')?.addEventListener('click', async ()=>{
-    const btn = qs('#new-session'); if(btn) { btn.disabled = true; btn.textContent = 'New…'; }
+    const btn = qs('#new-session'); if(btn) { btn.disabled = true; btn.textContent = 'Newâ€¦'; }
     try{
       let cwd = (qs('#ctx-cwd')?.value||'').trim();
       if(!cwd){
         const pill = qs('#cwd-pill')?.textContent||'';
         const idx = pill.indexOf(':');
         if(idx>=0) cwd = pill.slice(idx+1).trim();
-        if(cwd==='—') cwd = '';
+        if(cwd==='â€”') cwd = '';
       }
       const model = qs('#ctx-model')?.value || 'gpt-5';
       const approval_policy = qs('#ctx-approval')?.value || undefined;
@@ -919,21 +919,30 @@ function initSession(){
       const actions=document.createElement('div'); actions.className='queue-actions';
       const btnUse=document.createElement('button'); btnUse.className='btn-sm'; btnUse.textContent='Use'; btnUse.title='Move to composer'; btnUse.addEventListener('click',()=>{ if(taSend){ taSend.value=it.text; taSend.focus(); autoSizeChat(); } queue.splice(idx,1); saveQueue(); renderQueue(); updateQueueVisibility(); });
       const btnSend=document.createElement('button'); btnSend.className='btn-sm'; btnSend.textContent='Send'; btnSend.title='Send this now'; btnSend.addEventListener('click',()=>{ sendText(it.text); queue.splice(idx,1); saveQueue(); renderQueue(); updateQueueVisibility(); if(!taSend || !taSend.value.trim()){ if(queue.length>0){ const next=queue.shift(); if(taSend){ taSend.value=next.text; taSend.focus(); autoSizeChat(); } saveQueue(); renderQueue(); updateQueueVisibility(); } } });
-      const btnUp=document.createElement('button'); btnUp.className='btn-sm'; btnUp.textContent='↑'; btnUp.title='Move up'; btnUp.addEventListener('click',()=>{ if(idx>0){ const tmp=queue[idx-1]; queue[idx-1]=queue[idx]; queue[idx]=tmp; saveQueue(); renderQueue(); } });
-      const btnDown=document.createElement('button'); btnDown.className='btn-sm'; btnDown.textContent='↓'; btnDown.title='Move down'; btnDown.addEventListener('click',()=>{ if(idx<queue.length-1){ const tmp=queue[idx+1]; queue[idx+1]=queue[idx]; queue[idx]=tmp; saveQueue(); renderQueue(); } });
-      const btnDel=document.createElement('button'); btnDel.className='btn-sm'; btnDel.textContent='×'; btnDel.title='Remove'; btnDel.addEventListener('click',()=>{ queue.splice(idx,1); saveQueue(); renderQueue(); updateQueueVisibility(); });
+      const btnUp=document.createElement('button'); btnUp.className='btn-sm'; btnUp.textContent='â†‘'; btnUp.title='Move up'; btnUp.addEventListener('click',()=>{ if(idx>0){ const tmp=queue[idx-1]; queue[idx-1]=queue[idx]; queue[idx]=tmp; saveQueue(); renderQueue(); } });
+      const btnDown=document.createElement('button'); btnDown.className='btn-sm'; btnDown.textContent='â†“'; btnDown.title='Move down'; btnDown.addEventListener('click',()=>{ if(idx<queue.length-1){ const tmp=queue[idx+1]; queue[idx+1]=queue[idx]; queue[idx]=tmp; saveQueue(); renderQueue(); } });
+      const btnDel=document.createElement('button'); btnDel.className='btn-sm'; btnDel.textContent='Ã—'; btnDel.title='Remove'; btnDel.addEventListener('click',()=>{ queue.splice(idx,1); saveQueue(); renderQueue(); updateQueueVisibility(); });
       actions.append(btnUse, btnSend, btnUp, btnDown, btnDel); row.append(text, actions); queueListEl.append(row);
     }); updateQueueVisibility(); }
   function addToQueue(text){ if(!text || !text.trim()) return; queue.push({id:String(Date.now()), text:text.trim()}); saveQueue(); renderQueue(); updateQueueVisibility(); }
-  // Always-include state (per-session)
+  // Always-include state (global)
   const includeEnabledEl = qs('#include-enabled');
   const includeTextEl = qs('#include-text');
   const includeCountEl = qs('#include-count');
-  const includeKey = (name)=> `session:${id||'session'}:include.${name}`;
+  const INCLUDE_ENABLED_KEY = 'codex-include-enabled';
+  const INCLUDE_TEXT_KEY = 'codex-include-text';
   function loadInclude(){
     try{
-      const en = sessionStorage.getItem(includeKey('enabled'));
-      const txt = sessionStorage.getItem(includeKey('text'));
+      // Prefer global values
+      let en = localStorage.getItem(INCLUDE_ENABLED_KEY);
+      let txt = localStorage.getItem(INCLUDE_TEXT_KEY);
+      // One-time migration from per-session sessionStorage if present
+      if(en === null && txt === null){
+        const oldEn = sessionStorage.getItem(`session:${id||'session'}:include.enabled`);
+        const oldTxt = sessionStorage.getItem(`session:${id||'session'}:include.text`);
+        if(oldEn !== null){ en = oldEn; try{ localStorage.setItem(INCLUDE_ENABLED_KEY, en); }catch{} }
+        if(oldTxt !== null){ txt = oldTxt; try{ localStorage.setItem(INCLUDE_TEXT_KEY, txt); }catch{} }
+      }
       if(includeEnabledEl){ includeEnabledEl.checked = en === '1' || en === 'true'; }
       if(includeTextEl && typeof txt === 'string'){ includeTextEl.value = txt; }
       updateIncludeCounter();
@@ -941,8 +950,8 @@ function initSession(){
   }
   function saveInclude(){
     try{
-      if(includeEnabledEl){ sessionStorage.setItem(includeKey('enabled'), includeEnabledEl.checked ? '1' : '0'); }
-      if(includeTextEl){ sessionStorage.setItem(includeKey('text'), includeTextEl.value || ''); }
+      if(includeEnabledEl){ localStorage.setItem(INCLUDE_ENABLED_KEY, includeEnabledEl.checked ? '1' : '0'); }
+      if(includeTextEl){ localStorage.setItem(INCLUDE_TEXT_KEY, includeTextEl.value || ''); }
       updateIncludeCounter();
     }catch{}
   }
@@ -980,9 +989,67 @@ function initSession(){
     lastEchoedUser = s || null;
     try{ _ws.send(JSON.stringify(imgs.length ? {type:'user_message', text:s||'', images: imgs} : {type:'user_message', text:s||''})); }catch{}
   }
+
+  // Git auto-commit helpers (shared by modal and slash command)
+  function buildGitInstruction(opts){
+    try{
+      const message = (opts && typeof opts.message === 'string') ? opts.message.trim() : '';
+      const pull = !!(opts?.pull ?? true);
+      const add = !!(opts?.add ?? true);
+      const push = !!(opts?.push ?? true);
+      const cwd = (opts && typeof opts.cwd === 'string') ? opts.cwd.trim() : '';
+      const steps = [];
+      if(pull) steps.push('git pull --rebase');
+      if(add) steps.push('git add -A');
+      if(message){ steps.push(`git commit -m "${message.replace(/\"/g,'\\\"')}" || true`); }
+      else { steps.push('git commit -m "<AUTO_MESSAGE>" || true'); }
+      if(push) steps.push('git push');
+      return [
+        'Please perform a Git auto-commit in the current workspace.',
+        cwd ? `CWD: ${cwd}` : '',
+        message ? '' : 'Generate a concise, conventional commit message summarizing the staged changes (feat/fix/chore with scope if applicable, ~72-char subject). Replace <AUTO_MESSAGE> with your message.',
+        'Steps:',
+        ...steps.map(s=>`- ${s}`),
+        'Use the default remote/branch. If pull fails due to divergence, attempt a rebase.'
+      ].filter(Boolean).join('\n');
+    }catch{ return '' }
+  }
+  function sendGitInstruction(opts){
+    const instruct = buildGitInstruction(opts||{});
+    if(!instruct) return false;
+    if(!window._ws || _ws.readyState!==1){ alert('WebSocket not connected'); return false; }
+    try{ _ws.send(JSON.stringify({type:'user_message', text: instruct})); return true; }catch{ return false }
+  }
+
+  function parseGitSlash(input){
+    // Returns options or null if not a git slash command
+    const txt = String(input||'').trim();
+    if(!/^\/ai-git-commit-push(\s+.*)?$/i.test(txt)) return null;
+    let tail = txt.replace(/^\/ai-git-commit-push\s*/i, '');
+    let pull = true, add = true, push = true;
+    const cwd = (qs('#ctx-cwd')?.value||'').trim();
+    // If the entire tail is a single quoted string, treat it as the message verbatim and do not parse flags.
+    const t = tail.trim();
+    if((t.startsWith("\"") && t.endsWith("\"")) || (t.startsWith("'") && t.endsWith("'"))){
+      const message = t.slice(1, -1);
+      return { message, pull, add, push, cwd };
+    }
+    // Handle flags anywhere in the tail (outside of a pure quoted message)
+    const FLAG_RE = /--no-(pull|add|push)\b/gi;
+    tail = tail.replace(FLAG_RE, (m, which)=>{ const w=String(which||'').toLowerCase(); if(w==='pull') pull=false; else if(w==='add') add=false; else if(w==='push') push=false; return ' '; });
+    // Remaining is the commit message (optional). Strip surrounding quotes.
+    let message = tail.trim();
+    if((message.startsWith("\"") && message.endsWith("\"")) || (message.startsWith("'") && message.endsWith("'"))){
+      message = message.slice(1, -1);
+    }
+    return { message, pull, add, push, cwd };
+  }
+    const cwd = (qs('#ctx-cwd')?.value||'').trim();
+    return { message, pull, add, push, cwd };
+  }
   function autoSizeChat(){ try{ const ta=qs('#chat'); if(!ta) return; ta.style.height='auto'; const max=Math.max(100, Math.round(window.innerHeight*0.4)); const h=Math.min(ta.scrollHeight, max); ta.style.height=`${h}px`; }catch{} }
   // Wire send button
-  qs('#send')?.addEventListener('click', ()=>{ const txt=(taSend?.value||'').trim(); if(!txt && (!attachments||attachments.length===0)) return; sendText(txt, (attachments||[]).map(a=>a.dataUrl)); if(taSend){ taSend.value=''; autoSizeChat(); }
+  qs('#send')?.addEventListener('click', ()=>{ const txt=(taSend?.value||'').trim(); if(!txt && (!attachments||attachments.length===0)) return; const slash = parseGitSlash(txt); if(slash){ if(sendGitInstruction(slash)){ if(taSend){ taSend.value=''; autoSizeChat(); } clearAttachments(); } return; } sendText(txt, (attachments||[]).map(a=>a.dataUrl)); if(taSend){ taSend.value=''; autoSizeChat(); }
     clearAttachments();
     if(queue.length>0){ const next=queue.shift(); if(taSend){ taSend.value=next.text; autoSizeChat(); taSend.focus(); } saveQueue(); renderQueue(); updateQueueVisibility(); }
   });
@@ -996,6 +1063,16 @@ function initSession(){
     }
     if(e.key==='Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey){
       e.preventDefault(); const v=(taSend?.value||'').trim(); if(!v && (!attachments||attachments.length===0)) return;
+      // Slash command: /ai-git-commit-push [message] [--no-pull] [--no-add] [--no-push]
+      const slash = parseGitSlash(v);
+      if(slash){
+        // Bypass queue/busy logic and send immediately for explicit command
+        if(sendGitInstruction(slash)){
+          if(taSend){ taSend.value=''; autoSizeChat(); taSend.focus(); }
+          clearAttachments();
+        }
+        return;
+      }
       if(agentBusy){
         // Queue instead of sending when agent is busy
         addToQueue(v);
@@ -1040,7 +1117,7 @@ function initSession(){
 
     const isImg = (f)=> /^image\//.test(f.type || '');
     function uid(){ return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`; }
-    function render(){ if(!strip) return; strip.innerHTML=''; attachments.forEach(att=>{ const box=document.createElement('div'); box.className='thumb'; box.setAttribute('role','listitem'); const img=document.createElement('img'); img.src=att.dataUrl; img.alt=att.name||'image'; const meta=document.createElement('div'); meta.className='meta'; meta.textContent = `${att.name||''}`; const del=document.createElement('button'); del.className='del'; del.type='button'; del.setAttribute('aria-label','Remove'); del.textContent='×'; del.addEventListener('click', ()=>{ attachments = attachments.filter(x=>x.id!==att.id); render(); }); box.append(img, meta, del); strip.appendChild(box); }); }
+    function render(){ if(!strip) return; strip.innerHTML=''; attachments.forEach(att=>{ const box=document.createElement('div'); box.className='thumb'; box.setAttribute('role','listitem'); const img=document.createElement('img'); img.src=att.dataUrl; img.alt=att.name||'image'; const meta=document.createElement('div'); meta.className='meta'; meta.textContent = `${att.name||''}`; const del=document.createElement('button'); del.className='del'; del.type='button'; del.setAttribute('aria-label','Remove'); del.textContent='Ã—'; del.addEventListener('click', ()=>{ attachments = attachments.filter(x=>x.id!==att.id); render(); }); box.append(img, meta, del); strip.appendChild(box); }); }
     function clear(){ attachments=[]; render(); }
     function error(msg){ try{ alert(msg); }catch{} }
     function readFile(f){ return new Promise((resolve, reject)=>{ const fr=new FileReader(); fr.onload=()=>resolve(fr.result); fr.onerror=()=>reject(fr.error||new Error('read failed')); fr.readAsDataURL(f); }); }
@@ -1250,6 +1327,7 @@ function initSession(){
       act('Interrupt', ()=>{ if(window._ws&&_ws.readyState===1) _ws.send(JSON.stringify({type:'interrupt'})); }),
       act('Compact Conversation', ()=>{ if(!agentBusy && window._ws&&_ws.readyState===1) _ws.send(JSON.stringify({type:'compact'})); }, 'summarize to save tokens'),
       act('Open Approval', ()=>{ if(typeof openApproval==='function' && pendingApproval) openApproval(pendingApproval.kind, pendingApproval.id, pendingApproval.data); }, pendingApproval?`${pendingApproval.kind}`:'no pending'),
+      act('Git Auto-Commit (Slash: /ai-git-commit-push)', ()=>{ qs('#git-btn')?.click(); }, 'open modal'),
       act('Export JSONL', ()=>qs('#export')?.click()),
       act('Copy Transcript', ()=>navigator.clipboard.writeText(feed.innerText||'')),
       act('Toggle Reasoning', ()=>{ document.querySelectorAll('.reasoning').forEach(b=>{ const btn=b.querySelector('.toggle-btn'); if(btn) btn.click(); }); }),
@@ -1258,7 +1336,7 @@ function initSession(){
       act('Set Effort: medium', ()=>{ const sel=qs('#effort'); sel.value='medium'; sel.dispatchEvent(new Event('change')); }),
       act('Set Effort: high', ()=>{ const sel=qs('#effort'); sel.value='high'; sel.dispatchEvent(new Event('change')); }),
     ]; }
-    function render(){ list.innerHTML=''; const q=(input.value||'').toLowerCase(); actions().filter(a=>!q||a.label.toLowerCase().includes(q)||(a.sub||'').toLowerCase().includes(q)).forEach(a=>{ const row=document.createElement('div'); row.className='cmd-row'; row.tabIndex=0; const l=document.createElement('div'); l.className='cmd-left'; const t=document.createElement('div'); t.className='cmd-title'; t.textContent=a.label; const s=document.createElement('div'); s.className='cmd-sub'; s.textContent=a.sub||''; l.append(t,s); const go=document.createElement('div'); go.className='muted'; go.textContent='↩'; row.append(l, go); row.addEventListener('click',()=>{ a.run(); close(); }); row.addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ a.run(); close(); }}); list.append(row); }); }
+    function render(){ list.innerHTML=''; const q=(input.value||'').toLowerCase(); actions().filter(a=>!q||a.label.toLowerCase().includes(q)||(a.sub||'').toLowerCase().includes(q)).forEach(a=>{ const row=document.createElement('div'); row.className='cmd-row'; row.tabIndex=0; const l=document.createElement('div'); l.className='cmd-left'; const t=document.createElement('div'); t.className='cmd-title'; t.textContent=a.label; const s=document.createElement('div'); s.className='cmd-sub'; s.textContent=a.sub||''; l.append(t,s); const go=document.createElement('div'); go.className='muted'; go.textContent='â†©'; row.append(l, go); row.addEventListener('click',()=>{ a.run(); close(); }); row.addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ a.run(); close(); }}); list.append(row); }); }
     input?.addEventListener('input', render);
     window.addEventListener('keydown',(e)=>{ const mod=e.ctrlKey||e.metaKey; if(mod && e.key.toLowerCase()==='k'){ e.preventDefault(); open(); } if(e.key==='Escape' && modal.getAttribute('aria-hidden')==='false'){ close(); } });
     modal?.addEventListener('click',(e)=>{ if(e.target===modal) close(); });
@@ -1309,8 +1387,8 @@ function initSession(){
         const total = list.length;
         let done = 0, inprog = 0;
         for(const it of list){ const s=(it.status||'').toLowerCase(); if(s==='completed') done++; else if(s==='in_progress') inprog++; }
-        const base = total ? `${done}/${total} done` : '—';
-        pill.textContent = inprog ? `${base} • ${inprog} in progress` : base;
+        const base = total ? `${done}/${total} done` : 'â€”';
+        pill.textContent = inprog ? `${base} â€¢ ${inprog} in progress` : base;
         pill.classList.remove('pill-muted');
         pill.classList.add('pill-info');
       }

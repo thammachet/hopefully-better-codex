@@ -160,7 +160,7 @@ pub async fn process_exec_tool_call(
             })
         }
         Err(err) => {
-            tracing::error!("exec error: {err}");
+            tracing::warn!("exec error: {err}");
             Err(err)
         }
     }

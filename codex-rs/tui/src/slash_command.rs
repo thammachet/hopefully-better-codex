@@ -19,6 +19,7 @@ pub enum SlashCommand {
     Init,
     Compact,
     Diff,
+    AiGitCommitPush,
     Mention,
     Status,
     Mcp,
@@ -37,6 +38,9 @@ impl SlashCommand {
             SlashCommand::Compact => "summarize conversation to prevent hitting the context limit",
             SlashCommand::Quit => "exit Codex",
             SlashCommand::Diff => "show git diff (including untracked files)",
+            SlashCommand::AiGitCommitPush => {
+                "git pull/add/commit/push; message optional (AI can draft)"
+            }
             SlashCommand::Mention => "mention a file",
             SlashCommand::Status => "show current session configuration and token usage",
             SlashCommand::Model => "choose what model and reasoning effort to use",
@@ -66,6 +70,7 @@ impl SlashCommand {
             | SlashCommand::Configuration
             | SlashCommand::Logout => false,
             SlashCommand::Diff
+            | SlashCommand::AiGitCommitPush
             | SlashCommand::Mention
             | SlashCommand::Status
             | SlashCommand::Mcp
