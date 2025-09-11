@@ -63,6 +63,20 @@ pub struct Cli {
     #[arg(long = "output-last-message")]
     pub last_message_file: Option<PathBuf>,
 
+    /// Emit a final summary containing the session id and rollout path so that
+    /// subsequent runs can resume from this session.
+    #[arg(long = "session-summary", default_value_t = false)]
+    pub session_summary: bool,
+
+    /// Format to use when printing the session summary.
+    #[arg(long = "session-summary-format", value_enum, default_value_t = SummaryFormat::Text)]
+    pub session_summary_format: SummaryFormat,
+
+    /// If set, write the session summary as JSON to this file in addition to
+    /// any stdout output.
+    #[arg(long = "session-summary-file")]
+    pub session_summary_file: Option<PathBuf>,
+
     /// Initial instructions for the agent. If not provided as an argument (or
     /// if `-` is used), instructions are read from stdin.
     #[arg(value_name = "PROMPT")]
@@ -76,4 +90,12 @@ pub enum Color {
     Never,
     #[default]
     Auto,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+#[value(rename_all = "kebab-case")]
+pub enum SummaryFormat {
+    Text,
+    Json,
+    Shell,
 }

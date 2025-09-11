@@ -35,10 +35,12 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::time::Instant;
 
+use crate::cli::SummaryFormat;
 use crate::event_processor::CodexStatus;
 use crate::event_processor::EventProcessor;
 use crate::event_processor::handle_last_message;
 use codex_common::create_config_summary_entries;
+use codex_protocol::mcp_protocol::ConversationId;
 
 /// This should be configurable. When used in CI, users may not want to impose
 /// a limit so they can see the full transcript.
@@ -66,6 +68,14 @@ pub(crate) struct EventProcessorWithHumanOutput {
     reasoning_started: bool,
     raw_reasoning_started: bool,
     last_message_path: Option<PathBuf>,
+
+    // Session summary options/state
+    want_summary: bool,
+    summary_format: SummaryFormat,
+    summary_file: Option<PathBuf>,
+    session_id: Option<ConversationId>,
+    rollout_path: Option<PathBuf>,
+    model: Option<String>,
 }
 
 impl EventProcessorWithHumanOutput {
@@ -73,6 +83,9 @@ impl EventProcessorWithHumanOutput {
         with_ansi: bool,
         config: &Config,
         last_message_path: Option<PathBuf>,
+        want_summary: bool,
+        summary_format: SummaryFormat,
+        summary_file: Option<PathBuf>,
     ) -> Self {
         let call_id_to_command = HashMap::new();
         let call_id_to_patch = HashMap::new();
@@ -94,6 +107,12 @@ impl EventProcessorWithHumanOutput {
                 reasoning_started: false,
                 raw_reasoning_started: false,
                 last_message_path,
+                want_summary,
+                summary_format,
+                summary_file,
+                session_id: None,
+                rollout_path: None,
+                model: None,
             }
         } else {
             Self {
@@ -112,6 +131,12 @@ impl EventProcessorWithHumanOutput {
                 reasoning_started: false,
                 raw_reasoning_started: false,
                 last_message_path,
+                want_summary,
+                summary_format,
+                summary_file,
+                session_id: None,
+                rollout_path: None,
+                model: None,
             }
         }
     }
@@ -523,8 +548,12 @@ impl EventProcessor for EventProcessorWithHumanOutput {
                     history_log_id: _,
                     history_entry_count: _,
                     initial_messages: _,
-                    rollout_path: _,
+                    rollout_path: rp,
                 } = session_configured_event;
+                // Store for end-of-run summary
+                self.session_id = Some(conversation_id);
+                self.rollout_path = Some(rp.clone());
+                self.model = Some(model.clone());
 
                 ts_println!(
                     self,
@@ -558,7 +587,10 @@ impl EventProcessor for EventProcessorWithHumanOutput {
                     ts_println!(self, "task aborted: replaced by a new task");
                 }
             },
-            EventMsg::ShutdownComplete => return CodexStatus::Shutdown,
+            EventMsg::ShutdownComplete => {
+                self.maybe_emit_summary();
+                return CodexStatus::Shutdown;
+            }
             EventMsg::ConversationHistory(_) => {}
             EventMsg::UserMessage(_) => {}
         }
@@ -599,4 +631,61 @@ fn format_mcp_invocation(invocation: &McpInvocation) -> String {
     } else {
         format!("{fq_tool_name}({args_str})")
     }
+}
+
+impl EventProcessorWithHumanOutput {
+    fn maybe_emit_summary(&self) {
+        if !self.want_summary {
+            return;
+        }
+        let Some(id) = self.session_id.as_ref() else {
+            return;
+        };
+        let Some(path) = self.rollout_path.as_ref() else {
+            return;
+        };
+        let model = self.model.clone().unwrap_or_default();
+
+        match self.summary_format {
+            SummaryFormat::Text => {
+                println!("codex: session {} rollout \"{}\"", id, path.display());
+            }
+            SummaryFormat::Shell => {
+                let sid = shell_quote(&id.to_string());
+                let rpp = shell_quote(&format!("{}", path.display()));
+                println!("CODEX_SESSION_ID={sid} CODEX_ROLLOUT_PATH={rpp}");
+            }
+            SummaryFormat::Json => {
+                let obj = serde_json::json!({
+                    "type": "session_summary",
+                    "session_id": id,
+                    "rollout_path": format!("{}", path.display()),
+                    "model": model,
+                });
+                if let Ok(line) = serde_json::to_string(&obj) {
+                    println!("{line}");
+                }
+            }
+        }
+
+        if let Some(file) = self.summary_file.as_ref() {
+            let obj = serde_json::json!({
+                "type": "session_summary",
+                "session_id": id,
+                "rollout_path": format!("{}", path.display()),
+                "model": model,
+            });
+            if let Ok(s) = serde_json::to_string_pretty(&obj) {
+                let _ = std::fs::write(file, s);
+            }
+        }
+    }
+}
+
+fn shell_quote(s: &str) -> String {
+    if s.is_empty() {
+        return "''".to_string();
+    }
+    let escaped = s.replace('\'', "'\\''");
+    format!("'{}'", escaped)
 }

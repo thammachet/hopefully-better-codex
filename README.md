@@ -131,6 +131,41 @@ Codex CLI supports a rich set of configuration options, with preferences stored 
 
 ---
 
+## Chain codex exec runs (resume)
+
+The non‑interactive CLI (`codex exec`) can emit a final summary with the session id and rollout file path so you can resume the same conversation in a subsequent run.
+
+- Enable summary output:
+
+  - `--session-summary`: print a final summary when the run completes.
+  - `--session-summary-format {text|json|shell}`: choose output format (default: `text`).
+  - `--session-summary-file <path>`: also write the summary as JSON to a file.
+
+- Example (POSIX shells):
+
+  ```sh
+  # First run: capture env exports for chaining
+  eval $(codex exec --full-auto --session-summary --session-summary-format shell "bootstrap the project repo")
+  
+  # Next run: resume using the rollout path
+  codex exec --full-auto -c experimental_resume="$CODEX_ROLLOUT_PATH" "continue: add unit tests"
+  ```
+
+- Example (PowerShell):
+
+  ```powershell
+  $summary = codex exec --session-summary --session-summary-format json "prep: scaffold modules" |
+    ConvertFrom-Json | Where-Object { $_.type -eq 'session_summary' } | Select-Object -First 1
+  $rollout = $summary.rollout_path
+  codex exec --full-auto -c experimental_resume="$rollout" "continue: wire up CLI"
+  ```
+
+Notes:
+
+- The rollout file lives under `~/.codex/sessions/YYYY/MM/DD/rollout-<timestamp>-<id>.jsonl`.
+- Resuming via `-c experimental_resume="<path>"` preserves the same `conversation_id`.
+- Default behavior remains unchanged unless you pass `--session-summary`.
+
 ## License
 
 This repository is licensed under the [Apache-2.0 License](LICENSE).

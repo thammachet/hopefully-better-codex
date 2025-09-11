@@ -49,6 +49,9 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
         sandbox_mode: sandbox_mode_cli_arg,
         prompt,
         config_overrides,
+        session_summary,
+        session_summary_format,
+        session_summary_file,
     } = cli;
 
     // Determine the prompt based on CLI arg and/or stdin.
@@ -163,12 +166,19 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
 
     let config = Config::load_with_cli_overrides(cli_kv_overrides, overrides)?;
     let mut event_processor: Box<dyn EventProcessor> = if json_mode {
-        Box::new(EventProcessorWithJsonOutput::new(last_message_file.clone()))
+        Box::new(EventProcessorWithJsonOutput::new(
+            last_message_file.clone(),
+            session_summary,
+            session_summary_file.clone(),
+        ))
     } else {
         Box::new(EventProcessorWithHumanOutput::create_with_ansi(
             stdout_with_ansi,
             &config,
             last_message_file.clone(),
+            session_summary,
+            session_summary_format,
+            session_summary_file.clone(),
         ))
     };
 
