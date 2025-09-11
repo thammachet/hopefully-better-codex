@@ -34,6 +34,11 @@
 #chat{ width:100%; min-height:36px; max-height:40vh; resize:none; overflow:hidden; border-radius:10px; border:1px solid var(--line); background:var(--bg-soft); color:var(--fg); padding:6px 10px; line-height:1.35 }
 #chat:focus{ outline:2px solid var(--accent); outline-offset:2px }
 
+/* Always-include block */
+#include-block{ margin-top:8px; border-top:1px dashed var(--line); padding-top:8px }
+#include-block textarea{ min-height:44px }
+#include-count{ font-size:11px }
+
 /* Templates popover */
 .tpl-popover{ position:fixed; z-index:15; width:320px; max-width:95vw; border:1px solid var(--line); border-radius:10px; background:var(--bg-soft); color:var(--fg); box-shadow:var(--shadow); padding:8px; }
 .tpl-search{ width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--fg); }
