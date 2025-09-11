@@ -1044,9 +1044,6 @@ function initSession(){
     }
     return { message, pull, add, push, cwd };
   }
-    const cwd = (qs('#ctx-cwd')?.value||'').trim();
-    return { message, pull, add, push, cwd };
-  }
   function autoSizeChat(){ try{ const ta=qs('#chat'); if(!ta) return; ta.style.height='auto'; const max=Math.max(100, Math.round(window.innerHeight*0.4)); const h=Math.min(ta.scrollHeight, max); ta.style.height=`${h}px`; }catch{} }
   // Wire send button
   qs('#send')?.addEventListener('click', ()=>{ const txt=(taSend?.value||'').trim(); if(!txt && (!attachments||attachments.length===0)) return; const slash = parseGitSlash(txt); if(slash){ if(sendGitInstruction(slash)){ if(taSend){ taSend.value=''; autoSizeChat(); } clearAttachments(); } return; } sendText(txt, (attachments||[]).map(a=>a.dataUrl)); if(taSend){ taSend.value=''; autoSizeChat(); }
