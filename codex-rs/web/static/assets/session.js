@@ -155,6 +155,10 @@ function initSession(){
   const tokensEl = qs('#tokens');
   const planEl = qs('#plan');
   const reasonPill = qs('#reason-pill');
+  // Token usage tracking for compact recommendation
+  const BASELINE_TOKENS = 12000; // keep in sync with backend heuristic
+  const COMPACT_THRESHOLD_PCT = (()=>{ try{ const v=localStorage.getItem('codex-compact-threshold-pct'); const n=Number(v); return Number.isFinite(n) && n>0 && n<100 ? n : 20; }catch{ return 20 } })();
+  let lastTokenInfo = null; // { total_token_usage, last_token_usage, model_context_window }
   const baseTitle = document.title || 'Codex Session';
   function setTitleReasoning(text){
     try{
@@ -418,6 +422,7 @@ function initSession(){
     try{
       const sendBtn = qs('#send');
       const queueBtn = qs('#queue-add');
+      const compactBtn = qs('#compact');
       const ta = qs('#chat');
       if(!sendBtn || !queueBtn) return;
       if(agentBusy){
@@ -430,6 +435,7 @@ function initSession(){
         queueBtn.classList.add('primary');
         queueBtn.title = 'Queued — will send after current task';
         ta?.setAttribute('aria-label', 'Agent busy — text will be queued');
+        if(compactBtn){ compactBtn.disabled = true; }
       } else {
         // Restore defaults
         sendBtn.disabled = false;
@@ -441,6 +447,7 @@ function initSession(){
         sendBtn.title = 'Send (Enter)';
         queueBtn.title = 'Add to queue (Ctrl/Cmd+Enter)';
         ta?.setAttribute('aria-label', 'Type your prompt…');
+        if(compactBtn){ compactBtn.disabled = false; }
       }
     }catch{}
   }
@@ -604,9 +611,11 @@ function initSession(){
           // Newer protocol sends `{ info: { total_token_usage, last_token_usage, model_context_window } }`.
           // Fall back to legacy fields if present.
           let i=0, c=0, o=0;
+          let infoObj=null;
           try{
             if(e.msg && e.msg.info){
-              const last = e.msg.info.last_token_usage || {};
+              infoObj = e.msg.info || null;
+              const last = (infoObj && infoObj.last_token_usage) || {};
               // Display last-turn usage for clearer per-turn feedback.
               i = Number(last.input_tokens)||0;
               c = Number(last.cached_input_tokens)||0;
@@ -622,6 +631,34 @@ function initSession(){
             tokensEl.classList.remove('pill-muted');
             tokensEl.classList.add('pill-info');
           }
+
+          // Update compact recommendation highlight
+          try{
+            if(infoObj){
+              lastTokenInfo = infoObj;
+              const total = infoObj.total_token_usage || {};
+              const ctx = Number(infoObj.model_context_window||0);
+              const compactBtn = qs('#compact');
+              if(compactBtn && ctx && ctx > BASELINE_TOKENS){
+                const totalTokens = Number(total.total_tokens)||0;
+                const reasoningOut = Number(total.reasoning_output_tokens)||0;
+                const tokensInWindow = Math.max(0, totalTokens - reasoningOut);
+                const effWin = ctx - BASELINE_TOKENS;
+                const usedAdj = Math.max(0, tokensInWindow - BASELINE_TOKENS);
+                const remaining = Math.max(0, effWin - usedAdj);
+                const pctLeft = Math.max(0, Math.min(100, Math.round((remaining/effWin)*100)));
+                // Highlight when remaining percent <= threshold
+                const shouldHighlight = pctLeft <= COMPACT_THRESHOLD_PCT;
+                compactBtn.classList.toggle('primary', shouldHighlight);
+                // Keep button a ghost when not at risk
+                if(!shouldHighlight){ compactBtn.classList.add('ghost'); }
+                // Hint in title
+                compactBtn.title = shouldHighlight
+                  ? `Summarize conversation (recommended · ${pctLeft}% context left)`
+                  : 'Summarize conversation to reduce tokens';
+              }
+            }
+          }catch{}
         }
         else if(t==='background_event'){ addSystem(e.msg.message||''); }
         else if(t==='stream_error'){ addSystem(`stream error: ${e.msg.message||''}`); }
@@ -750,6 +787,11 @@ function initSession(){
   });
 
   qs('#interrupt')?.addEventListener('click', ()=>{ if(window._ws && _ws.readyState===1){ _ws.send(JSON.stringify({type:'interrupt'})); } });
+  qs('#compact')?.addEventListener('click', ()=>{
+    if(agentBusy) return; // avoid while a task is running
+    if(!window._ws || _ws.readyState!==1){ alert('WebSocket not connected'); return; }
+    try{ _ws.send(JSON.stringify({type:'compact'})); }catch{}
+  });
   qs('#export')?.addEventListener('click', ()=>{ try{ const blob=new Blob([eventsLog.join('\n')],{type:'application/x-ndjson'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`codex-session-${id}.jsonl`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);}catch{ alert('Export failed'); } });
   // Copy transcript button
   (function(){
@@ -1160,6 +1202,7 @@ function initSession(){
     const act=(label, run, sub='')=>({label, sub, run});
     function actions(){ return [
       act('Interrupt', ()=>{ if(window._ws&&_ws.readyState===1) _ws.send(JSON.stringify({type:'interrupt'})); }),
+      act('Compact Conversation', ()=>{ if(!agentBusy && window._ws&&_ws.readyState===1) _ws.send(JSON.stringify({type:'compact'})); }, 'summarize to save tokens'),
       act('Open Approval', ()=>{ if(typeof openApproval==='function' && pendingApproval) openApproval(pendingApproval.kind, pendingApproval.id, pendingApproval.data); }, pendingApproval?`${pendingApproval.kind}`:'no pending'),
       act('Export JSONL', ()=>qs('#export')?.click()),
       act('Copy Transcript', ()=>navigator.clipboard.writeText(feed.innerText||'')),

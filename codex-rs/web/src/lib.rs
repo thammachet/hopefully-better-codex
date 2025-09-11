@@ -892,6 +892,9 @@ async fn create_session(
                         .submit(Op::PatchApproval { id, decision })
                         .await;
                 }
+                ClientMsg::Compact => {
+                    let _ = conversation_for_ops.submit(Op::Compact).await;
+                }
                 ClientMsg::OverrideTurnContext {
                     cwd,
                     model,
@@ -1028,6 +1031,9 @@ async fn resume_session(
                     let _ = conversation_for_ops
                         .submit(Op::PatchApproval { id, decision })
                         .await;
+                }
+                ClientMsg::Compact => {
+                    let _ = conversation_for_ops.submit(Op::Compact).await;
                 }
                 ClientMsg::OverrideTurnContext {
                     cwd,

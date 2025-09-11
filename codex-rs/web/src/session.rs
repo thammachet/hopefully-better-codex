@@ -19,6 +19,7 @@ pub enum ClientMsg {
         id: String,
         decision: codex_core::protocol::ReviewDecision,
     },
+    Compact,
     OverrideTurnContext {
         #[serde(skip_serializing_if = "Option::is_none")]
         cwd: Option<std::path::PathBuf>,
