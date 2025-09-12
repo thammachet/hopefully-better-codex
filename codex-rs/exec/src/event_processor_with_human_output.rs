@@ -149,6 +149,47 @@ impl EventProcessorWithHumanOutput {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::EventProcessorWithHumanOutput;
+    use crate::cli::SummaryFormat;
+    use crate::event_processor::CodexStatus;
+    use crate::event_processor::EventProcessor;
+    use codex_core::protocol::{Event, EventMsg, TaskCompleteEvent};
+    use core_test_support::load_default_config_for_test;
+    use std::path::PathBuf;
+
+    #[test]
+    fn quiet_mode_writes_last_message_and_initiates_shutdown() {
+        let td = tempfile::tempdir().expect("tempdir");
+        let config = load_default_config_for_test(&td);
+
+        let last_path: PathBuf = td.path().join("last.txt");
+
+        let mut proc = EventProcessorWithHumanOutput::create_with_ansi(
+            false,
+            &config,
+            Some(last_path.clone()),
+            false,               // want_summary
+            SummaryFormat::Text, // ignored in this test
+            None,                // summary_file
+            true,                // result_only (quiet)
+        );
+
+        // Send TaskComplete with a final message; expect InitiateShutdown and file write.
+        let status = proc.process_event(Event {
+            id: "0".into(),
+            msg: EventMsg::TaskComplete(TaskCompleteEvent {
+                last_agent_message: Some("FINAL".to_string()),
+            }),
+        });
+        assert!(matches!(status, CodexStatus::InitiateShutdown));
+
+        let contents = std::fs::read_to_string(&last_path).expect("read last file");
+        assert_eq!(contents, "FINAL");
+    }
+}
+
 struct ExecCommandBegin {
     command: Vec<String>,
 }

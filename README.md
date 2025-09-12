@@ -240,7 +240,7 @@ Standard Operating Procedure (SOP):
   4) Write rollout_path to .codex/worker.rollout
 - Send instruction to Worker:
   1) Read rollout from .codex/worker.rollout
-  2) Run: codex exec -C "<cwd>" --full-auto -c experimental_resume="<rollout>" "<ONE-LINE INSTRUCTION>"
+  2) Run: codex exec -q -C "<cwd>" --full-auto -c experimental_resume="<rollout>" "<ONE-LINE INSTRUCTION>"
 
 Your output policy:
 - Always reply with exactly one imperative one‑line instruction for the Worker. No prose, no markdown, no code fences.
