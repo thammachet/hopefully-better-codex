@@ -126,6 +126,11 @@ pub enum ClientRequest {
         request_id: RequestId,
         params: GitDiffToRemoteParams,
     },
+    LoginApiKey {
+        #[serde(rename = "id")]
+        request_id: RequestId,
+        params: LoginApiKeyParams,
+    },
     LoginChatGpt {
         #[serde(rename = "id")]
         request_id: RequestId,
@@ -148,7 +153,16 @@ pub enum ClientRequest {
         #[serde(rename = "id")]
         request_id: RequestId,
     },
+    SetDefaultModel {
+        #[serde(rename = "id")]
+        request_id: RequestId,
+        params: SetDefaultModelParams,
+    },
     GetUserAgent {
+        #[serde(rename = "id")]
+        request_id: RequestId,
+    },
+    UserInfo {
         #[serde(rename = "id")]
         request_id: RequestId,
     },
@@ -208,6 +222,8 @@ pub struct NewConversationParams {
 pub struct NewConversationResponse {
     pub conversation_id: ConversationId,
     pub model: String,
+    /// Note this could be ignored by the model.
+    pub reasoning_effort: ReasoningEffort,
     pub rollout_path: PathBuf,
 }
 
@@ -283,6 +299,16 @@ pub struct ArchiveConversationResponse {}
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, TS)]
 #[serde(rename_all = "camelCase")]
 pub struct RemoveConversationSubscriptionResponse {}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct LoginApiKeyParams {
+    pub api_key: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct LoginApiKeyResponse {}
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, TS)]
 #[serde(rename_all = "camelCase")]
@@ -363,9 +389,14 @@ pub struct ExecArbitraryCommandResponse {
 pub struct GetAuthStatusResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub auth_method: Option<AuthMode>,
-    pub preferred_auth_method: AuthMode,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub auth_token: Option<String>,
+
+    // Indicates that auth method must be valid to use the server.
+    // This can be false if using a custom provider that is configured
+    // with requires_openai_auth == false.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub requires_openai_auth: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, TS)]
@@ -376,9 +407,32 @@ pub struct GetUserAgentResponse {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, TS)]
 #[serde(rename_all = "camelCase")]
+pub struct UserInfoResponse {
+    /// Note: `alleged_user_email` is not currently verified. We read it from
+    /// the local auth.json, which the user could theoretically modify. In the
+    /// future, we may add logic to verify the email against the server before
+    /// returning it.
+    pub alleged_user_email: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, TS)]
+#[serde(rename_all = "camelCase")]
 pub struct GetUserSavedConfigResponse {
     pub config: UserSavedConfig,
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct SetDefaultModelParams {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_effort: Option<ReasoningEffort>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct SetDefaultModelResponse {}
 
 /// UserSavedConfig contains a subset of the config. It is meant to expose mcp
 /// client-configurable settings that can be specified in the NewConversation
