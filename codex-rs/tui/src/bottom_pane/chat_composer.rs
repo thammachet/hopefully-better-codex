@@ -618,7 +618,7 @@ impl ChatComposer {
             } => {
                 // Hide popup without modifying text, remember token to avoid immediate reopen.
                 if let Some(tok) = Self::current_at_token(&self.textarea) {
-                    self.dismissed_file_popup_token = Some(tok.to_string());
+                    self.dismissed_file_popup_token = Some(tok);
                 }
                 self.active_popup = ActivePopup::None;
                 (InputResult::None, true)

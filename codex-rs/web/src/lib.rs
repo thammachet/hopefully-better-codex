@@ -822,8 +822,7 @@ async fn create_session(
         })?;
 
     // Initialize AuthManager per server and spawn session.
-    let auth_manager =
-        codex_core::AuthManager::shared(config.codex_home.clone(), config.preferred_auth_method);
+    let auth_manager = codex_core::AuthManager::shared(config.codex_home.clone());
 
     let cm = codex_core::ConversationManager::new(auth_manager.clone());
     let conv = cm.new_conversation(config).await.map_err(|e| {
@@ -965,8 +964,7 @@ async fn resume_session(
                 format!("config error: {e}"),
             )
         })?;
-    let auth_manager =
-        codex_core::AuthManager::shared(config.codex_home.clone(), config.preferred_auth_method);
+    let auth_manager = codex_core::AuthManager::shared(config.codex_home.clone());
     let cm = codex_core::ConversationManager::new(auth_manager.clone());
     let conv = cm
         .resume_conversation_from_rollout(config, req.path.clone(), auth_manager)

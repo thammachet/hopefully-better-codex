@@ -892,12 +892,12 @@ impl ChatWidget {
                 parts
                     .push("Please perform a Git auto-commit in the current workspace.".to_string());
                 if !cwd_str.is_empty() {
-                    parts.push(format!("CWD: {}", cwd_str));
+                    parts.push(format!("CWD: {cwd_str}"));
                 }
                 parts.push("Generate a concise, conventional commit message summarizing the staged changes (feat/fix/chore with scope if applicable, ~72-char subject). Replace <AUTO_MESSAGE> with your message.".to_string());
                 parts.push("Steps:".to_string());
                 for s in steps.iter() {
-                    parts.push(format!("- {}", s));
+                    parts.push(format!("- {s}"));
                 }
                 parts.push("Use the default remote/branch. If pull fails due to divergence, attempt a rebase.".to_string());
                 let instruct = parts.join("\n");
@@ -1002,7 +1002,7 @@ impl ChatWidget {
         let mut items: Vec<InputItem> = Vec::new();
 
         // Detect a one-turn @model token (last occurrence) and strip it from the text.
-        let mut effective_text = text.clone();
+        let mut effective_text = text;
         let mut one_turn_model: Option<(
             String,
             codex_protocol::config_types::ReasoningEffort,
@@ -1078,7 +1078,7 @@ impl ChatWidget {
         }
 
         // If a one-turn model override was detected, send as UserTurn so it applies for the full task.
-        if let Some((model, effort, _token)) = one_turn_model.clone() {
+        if let Some((model, effort, _token)) = one_turn_model {
             let op = Op::UserTurn {
                 items,
                 cwd: self.config.cwd.clone(),
@@ -1131,7 +1131,7 @@ impl ChatWidget {
 
         // Only show the text portion in conversation history.
         if !effective_text.is_empty() {
-            self.add_to_history(history_cell::new_user_prompt(effective_text.clone()));
+            self.add_to_history(history_cell::new_user_prompt(effective_text));
         }
     }
 
