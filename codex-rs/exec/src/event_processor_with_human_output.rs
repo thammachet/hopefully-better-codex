@@ -76,6 +76,10 @@ pub(crate) struct EventProcessorWithHumanOutput {
     session_id: Option<ConversationId>,
     rollout_path: Option<PathBuf>,
     model: Option<String>,
+
+    /// When true, suppresses all intermediate logs and config printing,
+    /// emitting only the final assistant output to stdout.
+    result_only: bool,
 }
 
 impl EventProcessorWithHumanOutput {
@@ -86,6 +90,7 @@ impl EventProcessorWithHumanOutput {
         want_summary: bool,
         summary_format: SummaryFormat,
         summary_file: Option<PathBuf>,
+        result_only: bool,
     ) -> Self {
         let call_id_to_command = HashMap::new();
         let call_id_to_patch = HashMap::new();
@@ -113,6 +118,7 @@ impl EventProcessorWithHumanOutput {
                 session_id: None,
                 rollout_path: None,
                 model: None,
+                result_only,
             }
         } else {
             Self {
@@ -137,6 +143,7 @@ impl EventProcessorWithHumanOutput {
                 session_id: None,
                 rollout_path: None,
                 model: None,
+                result_only,
             }
         }
     }
@@ -167,6 +174,10 @@ impl EventProcessor for EventProcessorWithHumanOutput {
     /// for the session. This mirrors the information shown in the TUI welcome
     /// screen.
     fn print_config_summary(&mut self, config: &Config, prompt: &str) {
+        if self.result_only {
+            // Suppress config summary in quiet mode.
+            return;
+        }
         const VERSION: &str = env!("CARGO_PKG_VERSION");
         ts_println!(
             self,
@@ -195,6 +206,42 @@ impl EventProcessor for EventProcessorWithHumanOutput {
 
     fn process_event(&mut self, event: Event) -> CodexStatus {
         let Event { id: _, msg } = event;
+        if self.result_only {
+            // Only emit the final assistant output; suppress all other logs.
+            match msg {
+                EventMsg::TaskComplete(TaskCompleteEvent { last_agent_message }) => {
+                    if let Some(output_file) = self.last_message_path.as_deref() {
+                        handle_last_message(last_agent_message.as_deref(), output_file);
+                    }
+                    return CodexStatus::InitiateShutdown;
+                }
+                EventMsg::AgentMessageDelta(AgentMessageDeltaEvent { delta }) => {
+                    // Stream the answer without any headers.
+                    print!("{delta}");
+                    #[expect(clippy::expect_used)]
+                    std::io::stdout().flush().expect("could not flush stdout");
+                    return CodexStatus::Running;
+                }
+                EventMsg::AgentMessage(AgentMessageEvent { message }) => {
+                    if !self.answer_started {
+                        // Print the final message without prefixes.
+                        print!("{message}");
+                    } else {
+                        println!();
+                        self.answer_started = false;
+                    }
+                    return CodexStatus::Running;
+                }
+                EventMsg::ShutdownComplete => {
+                    self.maybe_emit_summary();
+                    return CodexStatus::Shutdown;
+                }
+                _ => {
+                    // Ignore all other events in quiet mode.
+                    return CodexStatus::Running;
+                }
+            }
+        }
         match msg {
             EventMsg::Error(ErrorEvent { message }) => {
                 let prefix = "ERROR:".style(self.red);
@@ -646,24 +693,26 @@ impl EventProcessorWithHumanOutput {
         };
         let model = self.model.clone().unwrap_or_default();
 
-        match self.summary_format {
-            SummaryFormat::Text => {
-                println!("codex: session {} rollout \"{}\"", id, path.display());
-            }
-            SummaryFormat::Shell => {
-                let sid = shell_quote(&id.to_string());
-                let rpp = shell_quote(&format!("{}", path.display()));
-                println!("CODEX_SESSION_ID={sid} CODEX_ROLLOUT_PATH={rpp}");
-            }
-            SummaryFormat::Json => {
-                let obj = serde_json::json!({
-                    "type": "session_summary",
-                    "session_id": id,
-                    "rollout_path": format!("{}", path.display()),
-                    "model": model,
-                });
-                if let Ok(line) = serde_json::to_string(&obj) {
-                    println!("{line}");
+        if !self.result_only {
+            match self.summary_format {
+                SummaryFormat::Text => {
+                    println!("codex: session {} rollout \"{}\"", id, path.display());
+                }
+                SummaryFormat::Shell => {
+                    let sid = shell_quote(&id.to_string());
+                    let rpp = shell_quote(&format!("{}", path.display()));
+                    println!("CODEX_SESSION_ID={sid} CODEX_ROLLOUT_PATH={rpp}");
+                }
+                SummaryFormat::Json => {
+                    let obj = serde_json::json!({
+                        "type": "session_summary",
+                        "session_id": id,
+                        "rollout_path": format!("{}", path.display()),
+                        "model": model,
+                    });
+                    if let Ok(line) = serde_json::to_string(&obj) {
+                        println!("{line}");
+                    }
                 }
             }
         }

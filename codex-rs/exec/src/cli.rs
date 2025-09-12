@@ -63,6 +63,11 @@ pub struct Cli {
     #[arg(long = "output-last-message")]
     pub last_message_file: Option<PathBuf>,
 
+    /// Only print the model's final output. Suppresses config summary and
+    /// intermediate logs (reasoning, tool calls, diffs, etc.).
+    #[arg(long = "quiet", short = 'q', default_value_t = false)]
+    pub quiet: bool,
+
     /// Emit a final summary containing the session id and rollout path so that
     /// subsequent runs can resume from this session.
     #[arg(long = "session-summary", default_value_t = false)]

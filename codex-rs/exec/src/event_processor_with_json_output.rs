@@ -65,15 +65,32 @@ mod tests {
         };
 
         let mut proc = EventProcessorWithJsonOutput::new(None, true, Some(summary_path.clone()));
-        let _ = proc.process_event(Event { id: "0".into(), msg: EventMsg::SessionConfigured(configured) });
-        let _ = proc.process_event(Event { id: "1".into(), msg: EventMsg::TaskComplete(TaskCompleteEvent { last_agent_message: None }) });
-        let _ = proc.process_event(Event { id: "2".into(), msg: EventMsg::ShutdownComplete });
+        let _ = proc.process_event(Event {
+            id: "0".into(),
+            msg: EventMsg::SessionConfigured(configured),
+        });
+        let _ = proc.process_event(Event {
+            id: "1".into(),
+            msg: EventMsg::TaskComplete(TaskCompleteEvent {
+                last_agent_message: None,
+            }),
+        });
+        let _ = proc.process_event(Event {
+            id: "2".into(),
+            msg: EventMsg::ShutdownComplete,
+        });
 
         let buf = std::fs::read_to_string(&summary_path).expect("read summary");
         let v: serde_json::Value = serde_json::from_str(&buf).expect("parse summary json");
-        assert_eq!(v.get("type").and_then(|x| x.as_str()), Some("session_summary"));
+        assert_eq!(
+            v.get("type").and_then(|x| x.as_str()),
+            Some("session_summary")
+        );
         let got_path = v.get("rollout_path").and_then(|x| x.as_str()).unwrap_or("");
-        assert!(got_path.ends_with("rollout-xyz.jsonl"), "unexpected rollout_path: {got_path}");
+        assert!(
+            got_path.ends_with("rollout-xyz.jsonl"),
+            "unexpected rollout_path: {got_path}"
+        );
         assert!(v.get("session_id").is_some(), "missing session_id");
     }
 }

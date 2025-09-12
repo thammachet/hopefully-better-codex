@@ -927,6 +927,7 @@ function initSession(){
   function addToQueue(text){ if(!text || !text.trim()) return; queue.push({id:String(Date.now()), text:text.trim()}); saveQueue(); renderQueue(); updateQueueVisibility(); }
   // Always-include state (global)
   const includeEnabledEl = qs('#include-enabled');
+  const includeOnceEl = qs('#include-once');
   const includeTextEl = qs('#include-text');
   const includeCountEl = qs('#include-count');
   const INCLUDE_ENABLED_KEY = 'codex-include-enabled';
@@ -957,13 +958,14 @@ function initSession(){
   }
   function getIncludeState(){
     const enabled = !!includeEnabledEl?.checked;
+    const once = !!includeOnceEl?.checked;
     const text = (includeTextEl?.value||'').trim();
-    return { enabled, text };
+    return { enabled, once, text };
   }
   function composeWithInclude(base){
     const baseText = (base||'').trim();
-    const { enabled, text } = getIncludeState();
-    if(!enabled || !text){ return baseText; }
+    const { enabled, once, text } = getIncludeState();
+    if((!enabled && !once) || !text){ return baseText; }
     if(!baseText) return text;
     return `${baseText}\n\n${text}`;
   }
@@ -982,12 +984,15 @@ function initSession(){
   function sendText(text, images){
     const sRaw=(text||'').trim();
     const imgs = Array.isArray(images) ? images.filter(Boolean) : [];
+    const useOnce = !!includeOnceEl?.checked;
     const s = composeWithInclude(sRaw);
     if(!s && imgs.length===0) return;
     if(!window._ws || _ws.readyState!==1){ alert('WebSocket not connected'); return; }
     addUser(s, imgs);
     lastEchoedUser = s || null;
     try{ _ws.send(JSON.stringify(imgs.length ? {type:'user_message', text:s||'', images: imgs} : {type:'user_message', text:s||''})); }catch{}
+    // If Include once was used, consume it by unchecking
+    try{ if(useOnce && includeOnceEl){ includeOnceEl.checked = false; } }catch{}
   }
 
   // Git auto-commit helpers (shared by modal and slash command)

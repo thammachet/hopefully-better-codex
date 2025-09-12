@@ -46,6 +46,7 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
         color,
         last_message_file,
         json: json_mode,
+        quiet,
         sandbox_mode: sandbox_mode_cli_arg,
         prompt,
         config_overrides,
@@ -179,6 +180,7 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
             session_summary,
             session_summary_format,
             session_summary_file.clone(),
+            quiet,
         ))
     };
 
@@ -188,9 +190,10 @@ pub async fn run_main(cli: Cli, codex_linux_sandbox_exe: Option<PathBuf>) -> any
             .map_err(|e| anyhow::anyhow!("OSS setup failed: {e}"))?;
     }
 
-    // Print the effective configuration and prompt so users can see what Codex
-    // is using.
-    event_processor.print_config_summary(&config, &prompt);
+    // Print the effective configuration and prompt unless in quiet mode.
+    if !quiet {
+        event_processor.print_config_summary(&config, &prompt);
+    }
 
     if !skip_git_repo_check && get_git_repo_root(&config.cwd.to_path_buf()).is_none() {
         eprintln!("Not inside a trusted directory and --skip-git-repo-check was not specified.");

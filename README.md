@@ -172,7 +172,7 @@ Use a “Controller” Codex to plan work and a “Worker” Codex to execute st
 
 - Pattern:
   - Controller produces a single imperative one‑line instruction.
-  - Worker executes that instruction under `codex exec -c experimental_resume="<rollout.jsonl>"` so its conversation history is chained.
+  - Worker executes that instruction under `codex exec -q -C "<cwd>" -c experimental_resume="<rollout.jsonl>"` so its conversation history is chained.
 
 - PowerShell SOP (persist Worker once, then reuse):
 
@@ -182,7 +182,7 @@ Use a “Controller” Codex to plan work and a “Worker” Codex to execute st
 
   # Start Worker if missing and persist its rollout
   if (-not (Test-Path .codex/worker.rollout)) {
-    $w = codex exec --session-summary --session-summary-format json "Worker: reply READY" |
+    $w = codex exec -C "$PWD" --session-summary --session-summary-format json "Worker: reply READY" |
       ConvertFrom-Json | Where-Object { $_.type -eq 'session_summary' } | Select-Object -First 1
     if (-not $w) { throw "Failed to start worker Codex" }
     Set-Content -Path .codex/worker.rollout -Value $w.rollout_path
@@ -190,11 +190,11 @@ Use a “Controller” Codex to plan work and a “Worker” Codex to execute st
   $WORKER_ROLLOUT = Get-Content .codex/worker.rollout -Raw
 
   # Controller: emit a single one‑line instruction
-  codex exec --output-last-message ctrl_last.txt "Manager: output a single, imperative one‑line instruction for the Worker. No preamble."
+  codex exec -q -C "$PWD" --output-last-message ctrl_last.txt "Manager: output a single, imperative one-line instruction for the Worker. No preamble."
   $INSTR = Get-Content ctrl_last.txt -Raw
 
   # Worker: execute with chained history
-  codex exec --full-auto -c experimental_resume="$WORKER_ROLLOUT" $INSTR
+  codex exec -q -C "$PWD" --full-auto -c experimental_resume="$WORKER_ROLLOUT" $INSTR
   ```
 
 - POSIX SOP (uses jq):
@@ -202,7 +202,7 @@ Use a “Controller” Codex to plan work and a “Worker” Codex to execute st
   ```sh
   mkdir -p .codex
   if [ ! -f .codex/worker.rollout ]; then
-    ROLLOUT=$(codex exec --session-summary --session-summary-format json "Worker: reply READY" \
+    ROLLOUT=$(codex exec -C "$PWD" --session-summary --session-summary-format json "Worker: reply READY" \
       | jq -r 'select(.type=="session_summary") | .rollout_path' | head -n1)
     [ -z "$ROLLOUT" ] && { echo "Failed to start worker Codex" >&2; exit 1; }
     printf '%s' "$ROLLOUT" > .codex/worker.rollout
@@ -210,9 +210,9 @@ Use a “Controller” Codex to plan work and a “Worker” Codex to execute st
   WORKER_ROLLOUT=$(cat .codex/worker.rollout)
 
   # Controller → Worker handoff
-  codex exec --output-last-message ctrl_last.txt "Manager: output a single, imperative one‑line instruction for the Worker. No preamble."
+  codex exec -q -C "$PWD" --output-last-message ctrl_last.txt "Manager: output a single, imperative one-line instruction for the Worker. No preamble."
   INSTR=$(cat ctrl_last.txt)
-  codex exec --full-auto -c experimental_resume="$WORKER_ROLLOUT" "$INSTR"
+  codex exec -q -C "$PWD" --full-auto -c experimental_resume="$WORKER_ROLLOUT" "$INSTR"
   ```
 
 - Prompting the Controller (suggested):
@@ -234,13 +234,13 @@ Standard Operating Procedure (SOP):
 - Storage: use a file .codex/worker.rollout to remember the Worker’s rollout path.
 - Bootstrap Worker (only if the file is missing):
   1) Ensure .codex exists.
-  2) Run: codex exec --session-summary --session-summary-format json "Worker: reply READY"
+  2) Run: codex exec -C "<cwd>" --session-summary --session-summary-format json "Worker: reply READY"
   3) Parse the JSON line with type=="session_summary" to get rollout_path.
      - Prefer jq if available; else use: node -e "process.stdin.once('data',d=>{const x=JSON.parse(d.toString());if(x.type==='session_summary')console.log(x.rollout_path)})"
   4) Write rollout_path to .codex/worker.rollout
 - Send instruction to Worker:
   1) Read rollout from .codex/worker.rollout
-  2) Run: codex exec --full-auto -c experimental_resume="<rollout>" "<ONE-LINE INSTRUCTION>"
+  2) Run: codex exec -C "<cwd>" --full-auto -c experimental_resume="<rollout>" "<ONE-LINE INSTRUCTION>"
 
 Your output policy:
 - Always reply with exactly one imperative one‑line instruction for the Worker. No prose, no markdown, no code fences.
