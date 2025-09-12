@@ -601,6 +601,7 @@ pub(crate) fn new_session_info(
 ) -> PlainHistoryCell {
     let SessionConfiguredEvent {
         model,
+        reasoning_effort: _,
         session_id: _,
         history_log_id: _,
         history_entry_count: _,
@@ -697,7 +698,7 @@ fn spinner(start_time: Option<Instant>) -> Span<'static> {
 
 pub(crate) fn new_active_mcp_tool_call(invocation: McpInvocation) -> PlainHistoryCell {
     let title_line = Line::from(vec!["tool".magenta(), " running...".dim()]);
-    let lines: Vec<Line> = vec![title_line, format_mcp_invocation(invocation.clone())];
+    let lines: Vec<Line> = vec![title_line, format_mcp_invocation(invocation)];
 
     PlainHistoryCell { lines }
 }
@@ -1331,7 +1332,7 @@ fn format_mcp_invocation<'a>(invocation: McpInvocation) -> Line<'a> {
     let invocation_spans = vec![
         invocation.server.clone().cyan(),
         ".".into(),
-        invocation.tool.clone().cyan(),
+        invocation.tool.cyan(),
         "(".into(),
         args_str.dim(),
         ")".into(),

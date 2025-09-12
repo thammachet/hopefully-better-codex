@@ -58,6 +58,7 @@ mod tests {
         let configured = SessionConfiguredEvent {
             session_id,
             model: "gpt-5".to_string(),
+            reasoning_effort: codex_core::protocol_config_types::ReasoningEffort::Medium,
             history_log_id: 0,
             history_entry_count: 0,
             initial_messages: None,
