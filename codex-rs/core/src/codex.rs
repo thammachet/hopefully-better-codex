@@ -100,6 +100,10 @@ use crate::protocol::ReviewDecision;
 use crate::protocol::SandboxPolicy;
 use crate::protocol::SessionConfiguredEvent;
 use crate::protocol::StreamErrorEvent;
+use crate::protocol::SubAgentCompletedEvent;
+use crate::protocol::SubAgentFailedEvent;
+use crate::protocol::SubAgentStartedEvent;
+use crate::protocol::SubAgentStatusEvent;
 use crate::protocol::Submission;
 use crate::protocol::TaskCompleteEvent;
 use crate::protocol::TokenUsageInfo;
@@ -2180,6 +2184,39 @@ async fn handle_function_call(
     arguments: String,
     call_id: String,
 ) -> ResponseInputItem {
+    if name == "sub_agent_launch" {
+        return handle_sub_agent_launch(
+            sess,
+            turn_context,
+            turn_diff_tracker,
+            sub_id,
+            arguments,
+            call_id,
+        )
+        .await;
+    }
+    handle_function_call_no_subagent(
+        sess,
+        turn_context,
+        turn_diff_tracker,
+        sub_id,
+        name,
+        arguments,
+        call_id,
+    )
+    .await
+}
+
+// Handles all function calls except sub_agent_launch (to avoid async-recursion cycles).
+async fn handle_function_call_no_subagent(
+    sess: &Session,
+    turn_context: &TurnContext,
+    turn_diff_tracker: &mut TurnDiffTracker,
+    sub_id: String,
+    name: String,
+    arguments: String,
+    call_id: String,
+) -> ResponseInputItem {
     match name.as_str() {
         "container.exec" | "shell" => {
             let params = match parse_container_exec_arguments(arguments, turn_context, &call_id) {
@@ -2260,6 +2297,7 @@ async fn handle_function_call(
             };
             ResponseInputItem::FunctionCallOutput { call_id, output }
         }
+        "sub_agent_launch" => unreachable!("handled in handle_function_call"),
         "apply_patch" => {
             let args = match serde_json::from_str::<ApplyPatchToolArgs>(&arguments) {
                 Ok(a) => a,
@@ -2360,6 +2398,335 @@ async fn handle_function_call(
                         },
                     }
                 }
+            }
+        }
+    }
+}
+
+async fn handle_sub_agent_launch(
+    sess: &Session,
+    turn_context: &TurnContext,
+    _turn_diff_tracker: &mut TurnDiffTracker,
+    sub_id: String,
+    arguments: String,
+    call_id: String,
+) -> ResponseInputItem {
+    #[derive(serde::Deserialize, Clone)]
+    #[serde(untagged)]
+    enum SandboxPolicyArg {
+        String(String),
+        Object(SandboxPolicy),
+    }
+
+    #[derive(serde::Deserialize)]
+    struct SubAgentLaunchArgs {
+        label: String,
+        prompt: String,
+        #[serde(default)]
+        cwd: Option<String>,
+        #[serde(default)]
+        approval_policy: Option<AskForApproval>,
+        #[serde(default)]
+        sandbox_policy: Option<SandboxPolicyArg>,
+        #[serde(default)]
+        default_exec_timeout_ms: Option<u64>,
+        #[serde(default)]
+        model: Option<String>,
+        #[serde(default)]
+        effort: Option<ReasoningEffortConfig>,
+        #[serde(default)]
+        summary: Option<ReasoningSummaryConfig>,
+    }
+
+    let args = match serde_json::from_str::<SubAgentLaunchArgs>(&arguments) {
+        Ok(a) => a,
+        Err(e) => {
+            return ResponseInputItem::FunctionCallOutput {
+                call_id,
+                output: FunctionCallOutputPayload {
+                    content: format!("failed to parse function arguments: {e}"),
+                    success: Some(false),
+                },
+            };
+        }
+    };
+
+    // Announce sub-agent start so the UI can display status.
+    sess.tx_event
+        .send(Event {
+            id: sub_id.clone(),
+            msg: EventMsg::SubAgentStarted(SubAgentStartedEvent {
+                sub_id: call_id.clone(),
+                label: args.label.clone(),
+            }),
+        })
+        .await
+        .ok();
+
+    // Build an isolated prompt (do not include main history).
+    let mut prompt = Prompt::default();
+    prompt.input.push(ResponseItem::Message {
+        id: None,
+        role: "user".to_string(),
+        content: vec![ContentItem::InputText {
+            text: args.prompt.clone(),
+        }],
+    });
+    // Inherit declared tools (including MCP) so sub-agent can use them if needed.
+    prompt.tools = get_openai_tools(
+        &turn_context.tools_config,
+        Some(sess.mcp_connection_manager.list_all_tools()),
+    );
+
+    // Derive a sub-turn context by applying runtime execution settings
+    // and optional model/effort/summary overrides.
+    let sa_client =
+        turn_context
+            .client
+            .clone_with_overrides(args.model.clone(), args.effort, args.summary);
+
+    // Default sub-agent to run without approval prompts and with a permissive,
+    // workspace-write sandbox unless explicitly overridden by the tool call.
+    let sa_approval_policy = args.approval_policy.unwrap_or(AskForApproval::Never);
+    let sa_sandbox_policy = match args.sandbox_policy.clone() {
+        Some(SandboxPolicyArg::Object(p)) => p,
+        Some(SandboxPolicyArg::String(s)) => match s.as_str() {
+            "danger-full-access" => SandboxPolicy::DangerFullAccess,
+            "read-only" => SandboxPolicy::ReadOnly,
+            "workspace-write" => SandboxPolicy::new_workspace_write_policy(),
+            _ => SandboxPolicy::DangerFullAccess,
+        },
+        None => SandboxPolicy::DangerFullAccess,
+    };
+
+    let sa_context = TurnContext {
+        client: sa_client,
+        tools_config: turn_context.tools_config.clone(),
+        user_instructions: turn_context.user_instructions.clone(),
+        base_instructions: turn_context.base_instructions.clone(),
+        approval_policy: sa_approval_policy,
+        sandbox_policy: sa_sandbox_policy,
+        shell_environment_policy: turn_context.shell_environment_policy.clone(),
+        cwd: turn_context
+            .resolve_path(args.cwd.clone())
+            .canonicalize()
+            .unwrap_or_else(|_| turn_context.resolve_path(args.cwd.clone())),
+        default_exec_timeout_ms: args
+            .default_exec_timeout_ms
+            .or(turn_context.default_exec_timeout_ms),
+    };
+
+    // Stream the sub-agent to completion, execute tools, and collect commands.
+    let mut stream = sa_context.client.clone().stream(&prompt).await;
+    let mut last_assistant_text = String::new();
+    let mut executed_commands: Vec<String> = Vec::new();
+    let summary_result = match stream.as_mut() {
+        Ok(s) => {
+            // Basic in-progress status update.
+            sess.tx_event
+                .send(Event {
+                    id: sub_id.clone(),
+                    msg: EventMsg::SubAgentStatus(SubAgentStatusEvent {
+                        sub_id: call_id.clone(),
+                        label: args.label.clone(),
+                        message: "working".to_string(),
+                        progress: None,
+                    }),
+                })
+                .await
+                .ok();
+
+            let s = s;
+            let mut td = TurnDiffTracker::new();
+            loop {
+                let ev = s.next().await;
+                let Some(ev) = ev else {
+                    break Err(anyhow::anyhow!("stream closed before completion"));
+                };
+                match ev {
+                    Ok(ResponseEvent::OutputItemDone(item)) => {
+                        // Capture assistant text
+                        if let ResponseItem::Message { role, content, .. } = &item
+                            && role == "assistant"
+                        {
+                            for ci in content.iter() {
+                                if let ContentItem::OutputText { text } = ci
+                                    && !text.trim().is_empty()
+                                {
+                                    last_assistant_text = text.clone();
+                                }
+                            }
+                        }
+                        // Capture exec commands
+                        match &item {
+                            ResponseItem::FunctionCall {
+                                name, arguments, ..
+                            } => {
+                                if name == "container.exec" || name == "shell" {
+                                    if let Ok(p) =
+                                        serde_json::from_str::<ShellToolCallParams>(arguments)
+                                    {
+                                        executed_commands.push(p.command.join(" "));
+                                    }
+                                } else if name == EXEC_COMMAND_TOOL_NAME
+                                    && let Ok(p) =
+                                        serde_json::from_str::<ExecCommandParams>(arguments)
+                                {
+                                    executed_commands.push(p.cmd.clone());
+                                }
+                            }
+                            ResponseItem::LocalShellCall { action, .. } => {
+                                let LocalShellAction::Exec(exec) = action;
+                                executed_commands.push(exec.command.join(" "));
+                            }
+                            _ => {}
+                        }
+                        // Execute tools for sub-agent items without causing async recursion.
+                        match item {
+                            ResponseItem::FunctionCall {
+                                name,
+                                arguments,
+                                call_id,
+                                ..
+                            } => {
+                                let _ = handle_function_call_no_subagent(
+                                    sess,
+                                    &sa_context,
+                                    &mut td,
+                                    sub_id.clone(),
+                                    name,
+                                    arguments,
+                                    call_id,
+                                )
+                                .await;
+                            }
+                            ResponseItem::LocalShellCall {
+                                id,
+                                call_id,
+                                status: _,
+                                action,
+                            } => {
+                                let LocalShellAction::Exec(action) = action;
+                                tracing::info!("LocalShellCall (sub-agent): {action:?}");
+                                let params = ShellToolCallParams {
+                                    command: action.command,
+                                    workdir: action.working_directory,
+                                    timeout_ms: action.timeout_ms,
+                                    with_escalated_permissions: None,
+                                    justification: None,
+                                };
+                                let effective_call_id = match (call_id, id) {
+                                    (Some(call_id), _) => call_id,
+                                    (None, Some(id)) => id,
+                                    (None, None) => {
+                                        error!("LocalShellCall without call_id or id");
+                                        String::new()
+                                    }
+                                };
+                                let exec_params = to_exec_params(params, &sa_context);
+                                let _ = handle_container_exec_with_params(
+                                    exec_params,
+                                    sess,
+                                    &sa_context,
+                                    &mut td,
+                                    sub_id.clone(),
+                                    effective_call_id,
+                                )
+                                .await;
+                            }
+                            ResponseItem::CustomToolCall {
+                                id: _,
+                                call_id,
+                                name,
+                                input,
+                                status: _,
+                            } => {
+                                let _ = handle_custom_tool_call(
+                                    sess,
+                                    &sa_context,
+                                    &mut td,
+                                    sub_id.clone(),
+                                    name,
+                                    input,
+                                    call_id,
+                                )
+                                .await;
+                            }
+                            ResponseItem::Message { .. }
+                            | ResponseItem::Reasoning { .. }
+                            | ResponseItem::WebSearchCall { .. } => {
+                                let msgs = map_response_item_to_event_messages(
+                                    &item,
+                                    sess.show_raw_agent_reasoning,
+                                );
+                                for msg in msgs {
+                                    let event = Event {
+                                        id: sub_id.clone(),
+                                        msg,
+                                    };
+                                    sess.send_event(event).await;
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    Ok(ResponseEvent::Completed { .. }) => {
+                        break Ok((last_assistant_text, executed_commands));
+                    }
+                    Ok(_) => {}
+                    Err(e) => break Err(e.into()),
+                }
+            }
+        }
+        Err(e) => Err(anyhow::anyhow!("failed to start sub-agent stream: {e:#}")),
+    };
+
+    match summary_result {
+        Ok((summary, commands)) => {
+            // Announce completion for UI consumers.
+            sess.tx_event
+                .send(Event {
+                    id: sub_id.clone(),
+                    msg: EventMsg::SubAgentCompleted(SubAgentCompletedEvent {
+                        sub_id: call_id.clone(),
+                        label: args.label.clone(),
+                        summary: summary.clone(),
+                        commands: if commands.is_empty() {
+                            None
+                        } else {
+                            Some(commands.clone())
+                        },
+                    }),
+                })
+                .await
+                .ok();
+
+            ResponseInputItem::FunctionCallOutput {
+                call_id,
+                output: FunctionCallOutputPayload {
+                    content: summary,
+                    success: Some(true),
+                },
+            }
+        }
+        Err(err) => {
+            sess.tx_event
+                .send(Event {
+                    id: sub_id.clone(),
+                    msg: EventMsg::SubAgentFailed(SubAgentFailedEvent {
+                        sub_id: call_id.clone(),
+                        label: args.label.clone(),
+                        error: format!("{err:#}"),
+                    }),
+                })
+                .await
+                .ok();
+            ResponseInputItem::FunctionCallOutput {
+                call_id,
+                output: FunctionCallOutputPayload {
+                    content: format!("sub-agent failed: {err:#}"),
+                    success: Some(false),
+                },
             }
         }
     }
