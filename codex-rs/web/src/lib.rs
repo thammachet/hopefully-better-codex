@@ -291,9 +291,13 @@ async fn home_page() -> axum::response::Html<String> {
         const app=$('#app'); app.innerHTML='';
         const toolbar=el('div',{class:'rowh'}, [ el('a',{href:'#/','class':'pill'},'\u2190 Back'), el('span',{class:'muted'}, `Session ${esc(id)}`) ]);
         const grid=el('div',{class:'grid2'});
-        // Left column: feed
+        // Left column: sub-agent status + feed
+        const subagentsBox = el('div',{class:'muted', id:'subagents'}, '');
         const feed=el('div',{class:'feed', id:'feed'});
-        grid.append(feed);
+        const leftCol = el('div',{});
+        leftCol.append(subagentsBox);
+        leftCol.append(feed);
+        grid.append(leftCol);
         // Right column: controls
         const controls=el('div',{class:'flow'});
         const chatBox=el('div',{class:'card'}, [ el('h2',{html:'Chat'}), el('textarea',{id:'chat',rows:'3',placeholder:'Type a prompt...'}), el('div',{class:'right'}, el('button',{class:'primary',id:'send'},'Send')) ]);
@@ -332,6 +336,7 @@ async fn home_page() -> axum::response::Html<String> {
         };
 
         const execBlocks = new Map(); // call_id -> pre
+        const subagents = new Map(); // sub_id -> label/message
         let agentBubble = null; // current assistant message container during deltas
         let reasoningPre = null; // current reasoning collector
 
@@ -401,6 +406,28 @@ async fn home_page() -> axum::response::Html<String> {
             case 'background_event':
               addMeta('Note: '+(e.msg.message||''));
               break;
+            case 'sub_agent_started': {
+              const sid = e.msg?.sub_id||''; const label = e.msg?.label||sid;
+              subagents.set(sid, `${label}: starting…`); refreshSubagents();
+              break;
+            }
+            case 'sub_agent_status': {
+              const sid = e.msg?.sub_id||''; const label = e.msg?.label||sid; const m = e.msg?.message||'working';
+              const p = (typeof e.msg?.progress==='number') ? `${Math.round(e.msg.progress)}% ` : '';
+              subagents.set(sid, `${label}: ${p}${m}`); refreshSubagents();
+              break;
+            }
+            case 'sub_agent_completed': {
+              const sid = e.msg?.sub_id||''; subagents.delete(sid); refreshSubagents();
+              addMeta(`Sub-agent '${e.msg?.label||sid}' completed`);
+              addSubagentSummary(e.msg?.label||sid, e.msg?.summary||'', e.msg?.commands||[]);
+              break;
+            }
+            case 'sub_agent_failed': {
+              const sid = e.msg?.sub_id||''; subagents.delete(sid); refreshSubagents();
+              addMeta(`Sub-agent '${e.msg?.label||sid}' failed`);
+              break;
+            }
             case 'stream_error':
               addMeta('Stream error: '+(e.msg.message||''));
               break;
@@ -415,6 +442,31 @@ async fn home_page() -> axum::response::Html<String> {
               addMeta(`[${t||'event'}]`);
           }
           feed.scrollTop = feed.scrollHeight;
+        }
+
+        function refreshSubagents(){
+          const box=document.getElementById('subagents');
+          if(!box) return;
+          if(subagents.size===0){ box.textContent=''; return; }
+          const lines = Array.from(subagents.values());
+          box.textContent = `Sub-agents: `+lines.join(' • ');
+        }
+
+        function addSubagentSummary(label, text, cmds){
+          const wrap = el('div',{class:'msg'});
+          const header = el('div',{class:'meta'}, `Sub-agent summary: ${label} `);
+          const btn = el('button',{},'Toggle'); header.append(btn); wrap.append(header);
+          const pre = el('pre',{}); pre.style.display='none'; pre.textContent = text || '';
+          wrap.append(pre);
+          if(Array.isArray(cmds) && cmds.length){
+            const cmdsHeader = el('div',{class:'meta'}, 'Commands'); wrap.append(cmdsHeader);
+            const list = el('pre',{}); list.style.display='none'; list.textContent = cmds.join('\n');
+            wrap.append(list);
+            const cmdBtn = el('button',{},'Show Commands'); cmdsHeader.append(cmdBtn);
+            cmdBtn.onclick = ()=>{ list.style.display = list.style.display==='none'?'block':'none'; };
+          }
+          btn.onclick = ()=>{ pre.style.display = pre.style.display==='none'?'block':'none'; };
+          feed.append(wrap);
         }
 
         function addMeta(text){

@@ -466,6 +466,16 @@ pub enum EventMsg {
 
     WebSearchEnd(WebSearchEndEvent),
 
+    // --- Sub-agent lifecycle events ---
+    /// A sub-agent was spawned by the main agent.
+    SubAgentStarted(SubAgentStartedEvent),
+    /// Progress or status update from a running sub-agent.
+    SubAgentStatus(SubAgentStatusEvent),
+    /// A sub-agent completed successfully and produced a summary.
+    SubAgentCompleted(SubAgentCompletedEvent),
+    /// A sub-agent failed.
+    SubAgentFailed(SubAgentFailedEvent),
+
     /// Notification that the server is about to execute a command.
     ExecCommandBegin(ExecCommandBeginEvent),
 
@@ -806,6 +816,47 @@ pub struct WebSearchBeginEvent {
 pub struct WebSearchEndEvent {
     pub call_id: String,
     pub query: String,
+}
+
+// --- Sub-agent events ---
+
+#[derive(Debug, Clone, Deserialize, Serialize, TS)]
+pub struct SubAgentStartedEvent {
+    /// Unique identifier for the sub-agent instance (often the tool call_id).
+    pub sub_id: String,
+    /// Human-readable label for UI display.
+    pub label: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, TS)]
+pub struct SubAgentStatusEvent {
+    /// Identifier for the sub-agent instance.
+    pub sub_id: String,
+    /// Label passed at creation time.
+    pub label: String,
+    /// One-line status message suitable for the status indicator.
+    pub message: String,
+    /// Optional progress percentage (0.0–100.0).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub progress: Option<f32>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, TS)]
+pub struct SubAgentCompletedEvent {
+    pub sub_id: String,
+    pub label: String,
+    /// Concise summary produced by the sub-agent.
+    pub summary: String,
+    /// Optional list of commands executed by the sub-agent.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub commands: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, TS)]
+pub struct SubAgentFailedEvent {
+    pub sub_id: String,
+    pub label: String,
+    pub error: String,
 }
 
 /// Response payload for `Op::GetHistory` containing the current session's

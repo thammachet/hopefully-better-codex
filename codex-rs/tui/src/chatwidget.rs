@@ -27,6 +27,10 @@ use codex_core::protocol::McpToolCallEndEvent;
 use codex_core::protocol::Op;
 use codex_core::protocol::PatchApplyBeginEvent;
 use codex_core::protocol::StreamErrorEvent;
+use codex_core::protocol::SubAgentCompletedEvent;
+use codex_core::protocol::SubAgentFailedEvent;
+use codex_core::protocol::SubAgentStartedEvent;
+use codex_core::protocol::SubAgentStatusEvent;
 use codex_core::protocol::TaskCompleteEvent;
 use codex_core::protocol::TokenUsage;
 use codex_core::protocol::TokenUsageInfo;
@@ -1215,6 +1219,27 @@ impl ChatWidget {
             EventMsg::WebSearchBegin(ev) => self.on_web_search_begin(ev),
             EventMsg::WebSearchEnd(ev) => self.on_web_search_end(ev),
             EventMsg::GetHistoryEntryResponse(ev) => self.on_get_history_entry_response(ev),
+            EventMsg::SubAgentStarted(SubAgentStartedEvent { sub_id, label }) => {
+                self.bottom_pane
+                    .set_subagent_status(sub_id, format!("{label} starting…"));
+            }
+            EventMsg::SubAgentStatus(SubAgentStatusEvent {
+                sub_id,
+                label,
+                message,
+                progress,
+            }) => {
+                let text = if let Some(p) = progress {
+                    format!("{label} {p:.0}% {message}")
+                } else {
+                    format!("{label} {message}")
+                };
+                self.bottom_pane.set_subagent_status(sub_id, text);
+            }
+            EventMsg::SubAgentCompleted(SubAgentCompletedEvent { sub_id, .. })
+            | EventMsg::SubAgentFailed(SubAgentFailedEvent { sub_id, .. }) => {
+                self.bottom_pane.clear_subagent_status(&sub_id);
+            }
             EventMsg::McpListToolsResponse(ev) => self.on_list_mcp_tools(ev),
             EventMsg::ListCustomPromptsResponse(ev) => self.on_list_custom_prompts(ev),
             EventMsg::ShutdownComplete => self.on_shutdown_complete(),
@@ -1284,6 +1309,8 @@ impl ChatWidget {
             .collect();
         self.bottom_pane.set_queued_user_messages(messages);
     }
+
+    // sub-agent status is handled by BottomPane
 
     pub(crate) fn add_diff_in_progress(&mut self) {
         self.request_redraw();

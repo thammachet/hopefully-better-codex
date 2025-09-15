@@ -640,6 +640,11 @@ impl EventProcessor for EventProcessorWithHumanOutput {
                 return CodexStatus::Shutdown;
             }
             EventMsg::ConversationPath(_) => {}
+            // Sub-agent events are not printed in exec human output; ignore.
+            EventMsg::SubAgentStarted(_)
+            | EventMsg::SubAgentStatus(_)
+            | EventMsg::SubAgentCompleted(_)
+            | EventMsg::SubAgentFailed(_) => {}
             EventMsg::UserMessage(_) => {}
         }
         CodexStatus::Running
@@ -746,7 +751,9 @@ mod tests {
     use crate::cli::SummaryFormat;
     use crate::event_processor::CodexStatus;
     use crate::event_processor::EventProcessor;
-    use codex_core::protocol::{Event, EventMsg, TaskCompleteEvent};
+    use codex_core::protocol::Event;
+    use codex_core::protocol::EventMsg;
+    use codex_core::protocol::TaskCompleteEvent;
     use core_test_support::load_default_config_for_test;
     use std::path::PathBuf;
 

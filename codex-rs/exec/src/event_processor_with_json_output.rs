@@ -128,7 +128,10 @@ impl EventProcessorWithJsonOutput {
 mod tests {
     use super::EventProcessorWithJsonOutput;
     use crate::event_processor::EventProcessor;
-    use codex_core::protocol::{Event, EventMsg, SessionConfiguredEvent, TaskCompleteEvent};
+    use codex_core::protocol::Event;
+    use codex_core::protocol::EventMsg;
+    use codex_core::protocol::SessionConfiguredEvent;
+    use codex_core::protocol::TaskCompleteEvent;
     use codex_protocol::mcp_protocol::ConversationId;
     use std::path::PathBuf;
 

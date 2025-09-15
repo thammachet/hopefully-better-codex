@@ -100,9 +100,9 @@ async fn test_apply_patch_freeform_tool() -> anyhow::Result<()> {
     let final_path = tmp_cwd.path().join("app.py");
     let contents = std::fs::read_to_string(&final_path)
         .unwrap_or_else(|e| panic!("failed reading {}: {e}", final_path.display()));
-    assert_eq!(
-        contents,
-        include_str!("../fixtures/apply_patch_freeform_final.txt")
-    );
+    // Normalize line endings for platform-agnostic comparison.
+    let got = contents.replace("\r\n", "\n");
+    let expected = include_str!("../fixtures/apply_patch_freeform_final.txt").replace("\r\n", "\n");
+    assert_eq!(got, expected);
     Ok(())
 }

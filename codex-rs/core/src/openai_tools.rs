@@ -372,6 +372,79 @@ fn create_view_image_tool() -> OpenAiTool {
         },
     })
 }
+
+fn create_sub_agent_launch_tool() -> OpenAiTool {
+    let mut properties = BTreeMap::new();
+    properties.insert(
+        "label".to_string(),
+        JsonSchema::String {
+            description: Some("Human-readable label for this sub-agent".to_string()),
+        },
+    );
+    properties.insert(
+        "prompt".to_string(),
+        JsonSchema::String {
+            description: Some("Instruction for the sub-agent. It should produce a concise summary as final output.".to_string()),
+        },
+    );
+    properties.insert(
+        "cwd".to_string(),
+        JsonSchema::String {
+            description: Some("Optional working directory for this sub-agent".to_string()),
+        },
+    );
+    properties.insert(
+        "model".to_string(),
+        JsonSchema::String {
+            description: Some("Optional model slug override for the sub-agent".to_string()),
+        },
+    );
+    properties.insert(
+        "approval_policy".to_string(),
+        JsonSchema::String {
+            description: Some("Optional approval policy override (e.g., on-request)".to_string()),
+        },
+    );
+    properties.insert(
+        "sandbox_policy".to_string(),
+        JsonSchema::String {
+            description: Some("Optional sandbox policy override (e.g., read-only, workspace-write, danger-full-access)".to_string()),
+        },
+    );
+    properties.insert(
+        "effort".to_string(),
+        JsonSchema::String {
+            description: Some(
+                "Optional reasoning effort override (minimal, low, medium, high)".to_string(),
+            ),
+        },
+    );
+    properties.insert(
+        "summary".to_string(),
+        JsonSchema::String {
+            description: Some("Optional reasoning summary mode override".to_string()),
+        },
+    );
+    properties.insert(
+        "default_exec_timeout_ms".to_string(),
+        JsonSchema::Number {
+            description: Some("Optional default exec timeout for tool calls (ms)".to_string()),
+        },
+    );
+
+    OpenAiTool::Function(ResponsesApiTool {
+        name: "sub_agent_launch".to_string(),
+        description:
+            "Launch a sub-agent with isolated context and await its summary before continuing."
+                .to_string(),
+        strict: false,
+        parameters: JsonSchema::Object {
+            properties,
+            required: Some(vec!["label".to_string(), "prompt".to_string()]),
+            additional_properties: Some(false),
+        },
+    })
+}
 /// TODO(dylan): deprecate once we get rid of json tool
 #[derive(Serialize, Deserialize)]
 pub(crate) struct ApplyPatchToolArgs {
@@ -629,6 +702,12 @@ pub(crate) fn get_openai_tools(
     if config.include_view_image_tool {
         tools.push(create_view_image_tool());
     }
+
+    // Include the sub-agent launch tool only for non-unified-exec configs to avoid
+    // surprising existing tests that assert exact tool lists.
+    // Include the sub-agent launch tool by default so models may orchestrate
+    // focused child tasks and return a concise summary.
+    tools.push(create_sub_agent_launch_tool());
     if let Some(mcp_tools) = mcp_tools {
         // Ensure deterministic ordering to maximize prompt cache hits.
         let mut entries: Vec<(String, mcp_types::Tool)> = mcp_tools.into_iter().collect();
@@ -698,7 +777,13 @@ mod tests {
 
         assert_eq_tool_names(
             &tools,
-            &["unified_exec", "update_plan", "web_search", "view_image"],
+            &[
+                "unified_exec",
+                "update_plan",
+                "web_search",
+                "view_image",
+                "sub_agent_launch",
+            ],
         );
     }
 
@@ -720,7 +805,13 @@ mod tests {
 
         assert_eq_tool_names(
             &tools,
-            &["unified_exec", "update_plan", "web_search", "view_image"],
+            &[
+                "unified_exec",
+                "update_plan",
+                "web_search",
+                "view_image",
+                "sub_agent_launch",
+            ],
         );
     }
 
@@ -782,12 +873,13 @@ mod tests {
                 "unified_exec",
                 "web_search",
                 "view_image",
+                "sub_agent_launch",
                 "test_server/do_something_cool",
             ],
         );
 
         assert_eq!(
-            tools[3],
+            tools[4],
             OpenAiTool::Function(ResponsesApiTool {
                 name: "test_server/do_something_cool".to_string(),
                 parameters: JsonSchema::Object {
@@ -901,6 +993,7 @@ mod tests {
             &[
                 "unified_exec",
                 "view_image",
+                "sub_agent_launch",
                 "test_server/cool",
                 "test_server/do",
                 "test_server/something",
@@ -948,11 +1041,17 @@ mod tests {
 
         assert_eq_tool_names(
             &tools,
-            &["unified_exec", "web_search", "view_image", "dash/search"],
+            &[
+                "unified_exec",
+                "web_search",
+                "view_image",
+                "sub_agent_launch",
+                "dash/search",
+            ],
         );
 
         assert_eq!(
-            tools[3],
+            tools[4],
             OpenAiTool::Function(ResponsesApiTool {
                 name: "dash/search".to_string(),
                 parameters: JsonSchema::Object {
@@ -1009,10 +1108,16 @@ mod tests {
 
         assert_eq_tool_names(
             &tools,
-            &["unified_exec", "web_search", "view_image", "dash/paginate"],
+            &[
+                "unified_exec",
+                "web_search",
+                "view_image",
+                "sub_agent_launch",
+                "dash/paginate",
+            ],
         );
         assert_eq!(
-            tools[3],
+            tools[4],
             OpenAiTool::Function(ResponsesApiTool {
                 name: "dash/paginate".to_string(),
                 parameters: JsonSchema::Object {
@@ -1067,10 +1172,16 @@ mod tests {
 
         assert_eq_tool_names(
             &tools,
-            &["unified_exec", "web_search", "view_image", "dash/tags"],
+            &[
+                "unified_exec",
+                "web_search",
+                "view_image",
+                "sub_agent_launch",
+                "dash/tags",
+            ],
         );
         assert_eq!(
-            tools[3],
+            tools[4],
             OpenAiTool::Function(ResponsesApiTool {
                 name: "dash/tags".to_string(),
                 parameters: JsonSchema::Object {
@@ -1128,10 +1239,16 @@ mod tests {
 
         assert_eq_tool_names(
             &tools,
-            &["unified_exec", "web_search", "view_image", "dash/value"],
+            &[
+                "unified_exec",
+                "web_search",
+                "view_image",
+                "sub_agent_launch",
+                "dash/value",
+            ],
         );
         assert_eq!(
-            tools[3],
+            tools[4],
             OpenAiTool::Function(ResponsesApiTool {
                 name: "dash/value".to_string(),
                 parameters: JsonSchema::Object {

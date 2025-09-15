@@ -36,6 +36,7 @@ use crate::error::Result;
 use crate::error::UsageLimitReachedError;
 use crate::flags::CODEX_RS_SSE_FIXTURE;
 use crate::model_family::ModelFamily;
+use crate::model_family::find_family_for_model;
 use crate::model_provider_info::ModelProviderInfo;
 use crate::model_provider_info::WireApi;
 use crate::openai_model_info::get_model_info;
@@ -367,6 +368,43 @@ impl ModelClient {
 
     pub fn get_auth_manager(&self) -> Option<Arc<AuthManager>> {
         self.auth_manager.clone()
+    }
+
+    /// Returns a new ModelClient that shares the same underlying HTTP client,
+    /// provider, and conversation id, but applies optional overrides for the
+    /// model slug and reasoning settings. The config is cloned so it can be
+    /// safely mutated without affecting the original client.
+    pub fn clone_with_overrides(
+        &self,
+        model: Option<String>,
+        effort: Option<ReasoningEffortConfig>,
+        summary: Option<ReasoningSummaryConfig>,
+    ) -> Self {
+        // Start from the current config and override fields as needed.
+        let mut updated_config = (*self.config).clone();
+
+        if let Some(m) = model.as_ref() {
+            updated_config.model = m.clone();
+            // Recompute family and (if known) context window for the new model.
+            if let Some(fam) = find_family_for_model(m) {
+                updated_config.model_family = fam.clone();
+                if let Some(info) = get_model_info(&fam) {
+                    updated_config.model_context_window = Some(info.context_window);
+                }
+            }
+        }
+
+        let provider = self.get_provider();
+        let auth_manager = self.get_auth_manager();
+
+        ModelClient::new(
+            Arc::new(updated_config),
+            auth_manager,
+            provider,
+            effort.unwrap_or(self.get_reasoning_effort()),
+            summary.unwrap_or(self.get_reasoning_summary()),
+            self.conversation_id,
+        )
     }
 }
 

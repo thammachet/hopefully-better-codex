@@ -72,6 +72,8 @@ pub(crate) struct BottomPane {
     status: Option<StatusIndicatorWidget>,
     /// Queued user messages to show under the status indicator.
     queued_user_messages: Vec<String>,
+    /// Minimal sub-agent status lines keyed by sub-agent id.
+    subagent_status: std::collections::HashMap<String, String>,
 
     // Always-visible model/effort indicator and optional per-turn override label.
     current_model: String,
@@ -108,6 +110,7 @@ impl BottomPane {
             ctrl_c_quit_hint: false,
             status: None,
             queued_user_messages: Vec::new(),
+            subagent_status: std::collections::HashMap::new(),
             esc_backtrack_hint: false,
             current_model: String::new(),
             current_effort: ReasoningEffort::Medium,
@@ -434,6 +437,24 @@ impl BottomPane {
             status.set_queued_messages(queued);
         }
         self.request_redraw();
+    }
+
+    /// Set or update a sub-agent status line.
+    pub(crate) fn set_subagent_status(&mut self, sub_id: String, text: String) {
+        self.subagent_status.insert(sub_id, text);
+        self.refresh_subagent_status_lines();
+    }
+
+    /// Clear a sub-agent status line.
+    pub(crate) fn clear_subagent_status(&mut self, sub_id: &str) {
+        self.subagent_status.remove(sub_id);
+        self.refresh_subagent_status_lines();
+    }
+
+    fn refresh_subagent_status_lines(&mut self) {
+        let mut lines: Vec<String> = self.subagent_status.values().cloned().collect();
+        lines.sort();
+        self.set_queued_user_messages(lines);
     }
 
     /// Update custom prompts available for the slash popup.
