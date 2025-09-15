@@ -1,0 +1,10 @@
+feat(core): sub-agent defaults to YOLO + flexible sandbox arg
+
+High-level goal: make sub-agent run full-auto without approvals and avoid option mismatch errors.
+
+- Default approval_policy: never (no prompts)
+- Default sandbox_policy: danger-full-access (YOLO)
+- Accept sandbox_policy as string ("read-only", "workspace-write", "danger-full-access") or object form.
+- Preserve explicit overrides when provided.
+
+Validated with cargo test -p codex-core.

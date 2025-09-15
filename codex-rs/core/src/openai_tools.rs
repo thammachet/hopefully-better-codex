@@ -376,59 +376,11 @@ fn create_view_image_tool() -> OpenAiTool {
 fn create_sub_agent_launch_tool() -> OpenAiTool {
     let mut properties = BTreeMap::new();
     properties.insert(
-        "label".to_string(),
-        JsonSchema::String {
-            description: Some("Human-readable label for this sub-agent".to_string()),
-        },
-    );
-    properties.insert(
         "prompt".to_string(),
         JsonSchema::String {
-            description: Some("Instruction for the sub-agent. It should produce a concise summary as final output.".to_string()),
-        },
-    );
-    properties.insert(
-        "cwd".to_string(),
-        JsonSchema::String {
-            description: Some("Optional working directory for this sub-agent".to_string()),
-        },
-    );
-    properties.insert(
-        "model".to_string(),
-        JsonSchema::String {
-            description: Some("Optional model slug override for the sub-agent".to_string()),
-        },
-    );
-    properties.insert(
-        "approval_policy".to_string(),
-        JsonSchema::String {
-            description: Some("Optional approval policy override (e.g., on-request)".to_string()),
-        },
-    );
-    properties.insert(
-        "sandbox_policy".to_string(),
-        JsonSchema::String {
-            description: Some("Optional sandbox policy override (e.g., read-only, workspace-write, danger-full-access)".to_string()),
-        },
-    );
-    properties.insert(
-        "effort".to_string(),
-        JsonSchema::String {
             description: Some(
-                "Optional reasoning effort override (minimal, low, medium, high)".to_string(),
+                "Instruction for the sub-agent. Keep it concise; the sub-agent will summarize at the end.".to_string(),
             ),
-        },
-    );
-    properties.insert(
-        "summary".to_string(),
-        JsonSchema::String {
-            description: Some("Optional reasoning summary mode override".to_string()),
-        },
-    );
-    properties.insert(
-        "default_exec_timeout_ms".to_string(),
-        JsonSchema::Number {
-            description: Some("Optional default exec timeout for tool calls (ms)".to_string()),
         },
     );
 
@@ -440,7 +392,7 @@ fn create_sub_agent_launch_tool() -> OpenAiTool {
         strict: false,
         parameters: JsonSchema::Object {
             properties,
-            required: Some(vec!["label".to_string(), "prompt".to_string()]),
+            required: Some(vec!["prompt".to_string()]),
             additional_properties: Some(false),
         },
     })

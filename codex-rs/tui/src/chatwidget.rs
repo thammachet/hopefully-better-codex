@@ -1176,17 +1176,29 @@ impl ChatWidget {
 
         match msg {
             EventMsg::SessionConfigured(e) => self.on_session_configured(e),
-            EventMsg::AgentMessage(AgentMessageEvent { message }) => self.on_agent_message(message),
+            EventMsg::AgentMessage(AgentMessageEvent { message }) => {
+                if !self.bottom_pane.has_active_subagents() {
+                    self.on_agent_message(message)
+                }
+            }
             EventMsg::AgentMessageDelta(AgentMessageDeltaEvent { delta }) => {
-                self.on_agent_message_delta(delta)
+                if !self.bottom_pane.has_active_subagents() {
+                    self.on_agent_message_delta(delta)
+                }
             }
             EventMsg::AgentReasoningDelta(AgentReasoningDeltaEvent { delta })
             | EventMsg::AgentReasoningRawContentDelta(AgentReasoningRawContentDeltaEvent {
                 delta,
-            }) => self.on_agent_reasoning_delta(delta),
+            }) => {
+                if !self.bottom_pane.has_active_subagents() {
+                    self.on_agent_reasoning_delta(delta)
+                }
+            }
             EventMsg::AgentReasoning(AgentReasoningEvent { .. })
             | EventMsg::AgentReasoningRawContent(AgentReasoningRawContentEvent { .. }) => {
-                self.on_agent_reasoning_final()
+                if !self.bottom_pane.has_active_subagents() {
+                    self.on_agent_reasoning_final()
+                }
             }
             EventMsg::AgentReasoningSectionBreak(_) => self.on_reasoning_section_break(),
             EventMsg::TaskStarted(_) => self.on_task_started(),
@@ -1209,19 +1221,64 @@ impl ChatWidget {
             EventMsg::ApplyPatchApprovalRequest(ev) => {
                 self.on_apply_patch_approval_request(id.unwrap_or_default(), ev)
             }
-            EventMsg::ExecCommandBegin(ev) => self.on_exec_command_begin(ev),
+            EventMsg::ExecCommandBegin(ev) => {
+                if self.bottom_pane.has_active_subagents() {
+                    let line = format!("exec: {}", ev.command.join(" "));
+                    self.bottom_pane.push_tool_line_to_recent_subagent(line);
+                    // Suppress transcript for sub-agent tool events.
+                } else {
+                    self.on_exec_command_begin(ev)
+                }
+            }
             EventMsg::ExecCommandOutputDelta(delta) => self.on_exec_command_output_delta(delta),
-            EventMsg::PatchApplyBegin(ev) => self.on_patch_apply_begin(ev),
-            EventMsg::PatchApplyEnd(ev) => self.on_patch_apply_end(ev),
-            EventMsg::ExecCommandEnd(ev) => self.on_exec_command_end(ev),
-            EventMsg::McpToolCallBegin(ev) => self.on_mcp_tool_call_begin(ev),
-            EventMsg::McpToolCallEnd(ev) => self.on_mcp_tool_call_end(ev),
+            EventMsg::PatchApplyBegin(ev) => {
+                if self.bottom_pane.has_active_subagents() {
+                    // Summarize how many files are being patched.
+                    let count = ev.changes.len();
+                    let line = if count == 0 {
+                        "apply: patch".to_string()
+                    } else if count == 1 {
+                        "apply: patch (1 file)".to_string()
+                    } else {
+                        format!("apply: patch ({count} files)")
+                    };
+                    self.bottom_pane.push_tool_line_to_recent_subagent(line);
+                } else {
+                    self.on_patch_apply_begin(ev)
+                }
+            }
+            EventMsg::PatchApplyEnd(ev) => {
+                if !self.bottom_pane.has_active_subagents() {
+                    self.on_patch_apply_end(ev)
+                }
+                // Else: suppress transcript for sub-agent.
+            }
+            EventMsg::ExecCommandEnd(ev) => {
+                if !self.bottom_pane.has_active_subagents() {
+                    self.on_exec_command_end(ev)
+                }
+                // Else: suppress transcript for sub-agent.
+            }
+            EventMsg::McpToolCallBegin(ev) => {
+                if self.bottom_pane.has_active_subagents() {
+                    // Render server.tool and omit bulky arguments.
+                    let inv = ev.invocation;
+                    let line = format!("mcp: {}.{}", inv.server, inv.tool);
+                    self.bottom_pane.push_tool_line_to_recent_subagent(line);
+                } else {
+                    self.on_mcp_tool_call_begin(ev)
+                }
+            }
+            EventMsg::McpToolCallEnd(ev) => {
+                if !self.bottom_pane.has_active_subagents() {
+                    self.on_mcp_tool_call_end(ev)
+                }
+            }
             EventMsg::WebSearchBegin(ev) => self.on_web_search_begin(ev),
             EventMsg::WebSearchEnd(ev) => self.on_web_search_end(ev),
             EventMsg::GetHistoryEntryResponse(ev) => self.on_get_history_entry_response(ev),
             EventMsg::SubAgentStarted(SubAgentStartedEvent { sub_id, label }) => {
-                self.bottom_pane
-                    .set_subagent_status(sub_id, format!("{label} starting…"));
+                self.bottom_pane.subagent_started(sub_id, label);
             }
             EventMsg::SubAgentStatus(SubAgentStatusEvent {
                 sub_id,
@@ -1230,11 +1287,11 @@ impl ChatWidget {
                 progress,
             }) => {
                 let text = if let Some(p) = progress {
-                    format!("{label} {p:.0}% {message}")
+                    format!("{p:.0}% {message}")
                 } else {
-                    format!("{label} {message}")
+                    message
                 };
-                self.bottom_pane.set_subagent_status(sub_id, text);
+                self.bottom_pane.set_subagent_status(sub_id, label, text);
             }
             EventMsg::SubAgentCompleted(SubAgentCompletedEvent { sub_id, .. })
             | EventMsg::SubAgentFailed(SubAgentFailedEvent { sub_id, .. }) => {

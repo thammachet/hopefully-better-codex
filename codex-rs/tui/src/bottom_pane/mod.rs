@@ -51,6 +51,39 @@ use approval_modal_view::ApprovalModalView;
 pub(crate) use list_selection_view::SelectionAction;
 pub(crate) use list_selection_view::SelectionItem;
 
+/// Per-sub-agent working tree, maintains a short list of tool lines.
+struct SubAgentTree {
+    label: String,
+    status: String,
+    tools: std::collections::VecDeque<String>,
+}
+
+impl SubAgentTree {
+    const MAX_TOOLS: usize = 3;
+    fn new(label: String) -> Self {
+        Self {
+            label,
+            status: String::new(),
+            tools: std::collections::VecDeque::new(),
+        }
+    }
+    fn push_tool(&mut self, line: String) {
+        if self.tools.len() >= Self::MAX_TOOLS {
+            self.tools.pop_front();
+        }
+        self.tools.push_back(line);
+    }
+    fn render_tool_lines(&self) -> Vec<String> {
+        let mut out: Vec<String> = Vec::new();
+        for (i, t) in self.tools.iter().enumerate() {
+            let is_last = i == self.tools.len().saturating_sub(1);
+            let prefix = if is_last { "  └ " } else { "  ├ " };
+            out.push(format!("{prefix}{t}"));
+        }
+        out
+    }
+}
+
 /// Pane displayed in the lower half of the chat UI.
 pub(crate) struct BottomPane {
     /// Composer is retained even when a BottomPaneView is displayed so the
@@ -72,8 +105,12 @@ pub(crate) struct BottomPane {
     status: Option<StatusIndicatorWidget>,
     /// Queued user messages to show under the status indicator.
     queued_user_messages: Vec<String>,
-    /// Minimal sub-agent status lines keyed by sub-agent id.
-    subagent_status: std::collections::HashMap<String, String>,
+    /// Sub-agent working trees keyed by sub-agent id (call_id of sub_agent_launch).
+    subagent_trees: std::collections::HashMap<String, SubAgentTree>,
+    /// Insertion order for sub-agent trees so we render them deterministically.
+    subagent_order: Vec<String>,
+    /// Track the most recently started sub-agent to attribute tool lines.
+    last_active_subagent: Option<String>,
 
     // Always-visible model/effort indicator and optional per-turn override label.
     current_model: String,
@@ -110,7 +147,9 @@ impl BottomPane {
             ctrl_c_quit_hint: false,
             status: None,
             queued_user_messages: Vec::new(),
-            subagent_status: std::collections::HashMap::new(),
+            subagent_trees: std::collections::HashMap::new(),
+            subagent_order: Vec::new(),
+            last_active_subagent: None,
             esc_backtrack_hint: false,
             current_model: String::new(),
             current_effort: ReasoningEffort::Medium,
@@ -439,22 +478,88 @@ impl BottomPane {
         self.request_redraw();
     }
 
-    /// Set or update a sub-agent status line.
-    pub(crate) fn set_subagent_status(&mut self, sub_id: String, text: String) {
-        self.subagent_status.insert(sub_id, text);
-        self.refresh_subagent_status_lines();
+    /// Declare a new sub-agent started; creates a working tree and selects it for tool attribution.
+    pub(crate) fn subagent_started(&mut self, sub_id: String, label: String) {
+        let tree = self
+            .subagent_trees
+            .entry(sub_id.clone())
+            .or_insert_with(|| SubAgentTree::new(label.clone()));
+        // If a tree already existed, update the label (latest wins).
+        tree.label = label;
+        tree.status = "starting…".to_string();
+        if !self.subagent_order.iter().any(|s| s == &sub_id) {
+            self.subagent_order.push(sub_id.clone());
+        }
+        self.last_active_subagent = Some(sub_id);
+        self.refresh_subagent_working_tree();
     }
 
-    /// Clear a sub-agent status line.
+    /// Update a sub-agent's status text and select it as the most recent.
+    pub(crate) fn set_subagent_status(&mut self, sub_id: String, label: String, status: String) {
+        let tree = self
+            .subagent_trees
+            .entry(sub_id.clone())
+            .or_insert_with(|| SubAgentTree::new(label.clone()));
+        tree.label = label;
+        tree.status = status;
+        if !self.subagent_order.iter().any(|s| s == &sub_id) {
+            self.subagent_order.push(sub_id.clone());
+        }
+        self.last_active_subagent = Some(sub_id);
+        self.refresh_subagent_working_tree();
+    }
+
+    /// Clear a sub-agent working tree.
     pub(crate) fn clear_subagent_status(&mut self, sub_id: &str) {
-        self.subagent_status.remove(sub_id);
-        self.refresh_subagent_status_lines();
+        self.subagent_trees.remove(sub_id);
+        self.subagent_order.retain(|s| s != sub_id);
+        if self
+            .last_active_subagent
+            .as_ref()
+            .map(|s| s == sub_id)
+            .unwrap_or(false)
+        {
+            self.last_active_subagent = self.subagent_order.last().cloned();
+        }
+        self.refresh_subagent_working_tree();
     }
 
-    fn refresh_subagent_status_lines(&mut self) {
-        let mut lines: Vec<String> = self.subagent_status.values().cloned().collect();
-        lines.sort();
-        self.set_queued_user_messages(lines);
+    /// Returns true if there is at least one active sub-agent working tree.
+    pub(crate) fn has_active_subagents(&self) -> bool {
+        !self.subagent_trees.is_empty()
+    }
+
+    /// Push a tool usage line to the most recently active sub-agent, keeping at most 3.
+    pub(crate) fn push_tool_line_to_recent_subagent(&mut self, line: String) {
+        let Some(id) = self.last_active_subagent.clone() else {
+            return;
+        };
+        if let Some(tree) = self.subagent_trees.get_mut(&id) {
+            tree.push_tool(line);
+            self.refresh_subagent_working_tree();
+        }
+    }
+
+    /// Rebuild the queued messages with grouped sub-agent working trees.
+    fn refresh_subagent_working_tree(&mut self) {
+        if self.subagent_trees.is_empty() {
+            // Preserve any regular queued messages if feature unused.
+            self.set_queued_user_messages(Vec::new());
+            return;
+        }
+        let mut messages: Vec<String> = Vec::new();
+        for id in self.subagent_order.iter() {
+            if let Some(tree) = self.subagent_trees.get(id) {
+                let mut msg = format!("{} {}", tree.label, tree.status);
+                let tools = tree.render_tool_lines();
+                if !tools.is_empty() {
+                    msg.push('\n');
+                    msg.push_str(&tools.join("\n"));
+                }
+                messages.push(msg);
+            }
+        }
+        self.set_queued_user_messages(messages);
     }
 
     /// Update custom prompts available for the slash popup.

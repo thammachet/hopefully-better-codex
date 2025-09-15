@@ -12,3 +12,4 @@ mod prompt_caching;
 mod seatbelt;
 mod stream_error_allows_next_turn;
 mod stream_no_completed;
+mod sub_agent_exec;
