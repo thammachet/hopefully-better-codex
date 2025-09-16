@@ -155,6 +155,9 @@ function initSession(){
   const tokensEl = qs('#tokens');
   const planEl = qs('#plan');
   const reasonPill = qs('#reason-pill');
+  let chatPillRow = qs('#chat-pill-row');
+  const subAgentPills = new Map(); // sub_id -> { pill, label, status, timeout }
+  const SUB_AGENT_CLEAR_DELAY_MS = 4000;
   // Token usage tracking for compact recommendation
   const BASELINE_TOKENS = 12000; // keep in sync with backend heuristic
   const COMPACT_THRESHOLD_PCT = (()=>{ try{ const v=localStorage.getItem('codex-compact-threshold-pct'); const n=Number(v); return Number.isFinite(n) && n>0 && n<100 ? n : 20; }catch{ return 20 } })();
@@ -165,6 +168,140 @@ function initSession(){
       const t = (text||'').toString().trim();
       document.title = t ? `${t} â€” Codex Session` : baseTitle;
     }catch{}
+  }
+
+  function ensureChatPillRow(){
+    if(chatPillRow) return chatPillRow;
+    try{
+      const composer = qs('.card.composer');
+      if(!composer) return null;
+      let head = qs(':scope > .card-head', composer);
+      if(!head){
+        const chatTitle = qs('h3', composer);
+        head = document.createElement('div');
+        head.className = 'card-head';
+        if(chatTitle){
+          composer.insertBefore(head, chatTitle);
+          head.appendChild(chatTitle);
+        } else {
+          composer.prepend(head);
+        }
+      }
+      chatPillRow = document.createElement('div');
+      chatPillRow.id = 'chat-pill-row';
+      chatPillRow.className = 'chat-pill-row';
+      head.appendChild(chatPillRow);
+    }catch{}
+    return chatPillRow;
+  }
+
+  function setPillKind(el, kind){
+    if(!el) return;
+    el.classList.remove('pill-muted', 'pill-info', 'pill-ok', 'pill-warn');
+    el.classList.add(kind);
+  }
+
+  function formatSubAgentLabel(label, fallback){
+    const trimmed = (label || '').trim();
+    if(trimmed) return trimmed;
+    const fb = (fallback || '').trim();
+    return fb || 'sub-agent';
+  }
+
+  function formatSubAgentStatus(message, progress){
+    const msg = (message || '').trim();
+    const base = msg || 'working';
+    if(typeof progress === 'number' && Number.isFinite(progress)){
+      const pct = Math.round(progress);
+      return `${pct}% ${base}`.trim();
+    }
+    return base;
+  }
+
+  function getOrCreateSubAgentEntry(subId, label){
+    if(!subId) return null;
+    const row = ensureChatPillRow();
+    if(!row) return null;
+    let entry = subAgentPills.get(subId);
+    if(entry){
+      if(label && label !== entry.label){
+        entry.label = label;
+      }
+      if(entry.timeout){
+        clearTimeout(entry.timeout);
+        entry.timeout = null;
+      }
+      return entry;
+    }
+    const pill = document.createElement('span');
+    pill.className = 'pill pill-info sub-agent-pill';
+    pill.dataset.subAgentId = subId;
+    row.appendChild(pill);
+    entry = { pill, label: label || subId, status: '', timeout: null };
+    subAgentPills.set(subId, entry);
+    return entry;
+  }
+
+  function updateSubAgentPill(subId, label, statusText, kind){
+    const entry = getOrCreateSubAgentEntry(subId, label);
+    if(!entry) return;
+    if(label) entry.label = label;
+    const safeLabel = formatSubAgentLabel(entry.label, subId);
+    const safeStatus = (statusText || 'working').trim();
+    const full = `${safeLabel}: ${safeStatus}`;
+    entry.status = safeStatus;
+    entry.pill.textContent = full;
+    entry.pill.title = `Sub-agent ${full}`;
+    entry.pill.setAttribute('aria-label', `Sub-agent ${full}`);
+    setPillKind(entry.pill, kind || 'pill-info');
+  }
+
+  function scheduleSubAgentRemoval(subId, delayMs){
+    const entry = subAgentPills.get(subId);
+    if(!entry) return;
+    if(entry.timeout){
+      clearTimeout(entry.timeout);
+    }
+    entry.timeout = setTimeout(()=>{
+      const current = subAgentPills.get(subId);
+      if(current && current.pill.parentElement){
+        current.pill.parentElement.removeChild(current.pill);
+      }
+      subAgentPills.delete(subId);
+    }, delayMs);
+  }
+
+  function handleSubAgentStarted(ev){
+    const subId = ev?.sub_id || ev?.subId || '';
+    if(!subId) return;
+    const label = formatSubAgentLabel(ev?.label, subId);
+    updateSubAgentPill(subId, label, 'starting...', 'pill-info');
+  }
+
+  function handleSubAgentStatus(ev){
+    const subId = ev?.sub_id || ev?.subId || '';
+    if(!subId) return;
+    const label = formatSubAgentLabel(ev?.label, subId);
+    const status = formatSubAgentStatus(ev?.message, ev?.progress);
+    updateSubAgentPill(subId, label, status, 'pill-info');
+  }
+
+  function handleSubAgentCompleted(ev){
+    const subId = ev?.sub_id || ev?.subId || '';
+    if(!subId) return;
+    const label = formatSubAgentLabel(ev?.label, subId);
+    const status = ev?.summary ? 'done' : 'complete';
+    updateSubAgentPill(subId, label, status, 'pill-ok');
+    scheduleSubAgentRemoval(subId, SUB_AGENT_CLEAR_DELAY_MS);
+  }
+
+  function handleSubAgentFailed(ev){
+    const subId = ev?.sub_id || ev?.subId || '';
+    if(!subId) return;
+    const label = formatSubAgentLabel(ev?.label, subId);
+    const status = (ev?.error || 'failed').trim() || 'failed';
+    updateSubAgentPill(subId, label, status, 'pill-warn');
+    scheduleSubAgentRemoval(subId, SUB_AGENT_CLEAR_DELAY_MS);
   }
 
   // Move reasoning pill next to Chat title in composer
@@ -178,8 +315,13 @@ function initSession(){
         head.className = 'card-head';
         composer.insertBefore(head, chatTitle);
       }
-      head.appendChild(chatTitle); // move title into header
-      head.appendChild(reasonPill); // move pill into header
+      if(!head.contains(chatTitle)){
+        head.insertBefore(chatTitle, head.firstChild);
+      }
+      const tray = ensureChatPillRow();
+      if(tray && !tray.contains(reasonPill)){
+        tray.prepend(reasonPill);
+      }
       // Ensure pill starts with a sane default
       reasonPill.textContent = 'Reasoning: â€”';
     }
@@ -600,6 +742,10 @@ function initSession(){
         else if(t==='mcp_tool_call_end'){
           const ok = e.msg.result && !e.msg.result.is_error; const tool=activeTools.get(e.msg.call_id); if(tool){ tool.previewEl.textContent = ok? 'ok' : 'error'; } if(ok) toolOk(e.msg.call_id, 'ok'); else toolErr(e.msg.call_id, 'error');
         }
+        else if(t==='sub_agent_started'){ handleSubAgentStarted(e.msg||{}); }
+        else if(t==='sub_agent_status'){ handleSubAgentStatus(e.msg||{}); }
+        else if(t==='sub_agent_completed'){ handleSubAgentCompleted(e.msg||{}); }
+        else if(t==='sub_agent_failed'){ handleSubAgentFailed(e.msg||{}); }
         else if(t==='patch_apply_begin'){
           const changes=e.msg.changes||{}; const n=Object.keys(changes).length; const sub=e.msg.auto_approved?`auto-approved â€¢ ${n} files`:`${n} files`;
           createTool('patch', e.msg.call_id, 'apply_patch', sub);
@@ -695,7 +841,7 @@ function initSession(){
             const init = e.msg.initial_messages || [];
             if(Array.isArray(init) && init.length){
               try{
-                const counts={ user_message:0, agent_message:0, agent_reasoning:0, agent_reasoning_raw_content:0, web_search_end:0, other:0 };
+                const counts={ user_message:0, agent_message:0, agent_reasoning:0, agent_reasoning_raw_content:0, web_search_end:0, sub_agent:0, other:0 };
                 for(const im of init){
                   const tt = im?.type;
                   if(tt==='user_message'){ addUser(im.message||''); counts.user_message++; }
@@ -703,6 +849,10 @@ function initSession(){
                   else if(tt==='agent_reasoning'){ setReasoning(im.text||''); counts.agent_reasoning++; }
                   else if(tt==='agent_reasoning_raw_content'){ addReasoningDelta(im.text||''); counts.agent_reasoning_raw_content++; }
                   else if(tt==='web_search_end'){ createTool('search', im.call_id||'', 'web search', im.query||''); counts.web_search_end++; }
+                  else if(tt==='sub_agent_started'){ handleSubAgentStarted(im); counts.sub_agent++; }
+                  else if(tt==='sub_agent_status'){ handleSubAgentStatus(im); counts.sub_agent++; }
+                  else if(tt==='sub_agent_completed'){ handleSubAgentCompleted(im); counts.sub_agent++; }
+                  else if(tt==='sub_agent_failed'){ handleSubAgentFailed(im); counts.sub_agent++; }
                   else { counts.other++; dlog('init message (unhandled)', im); }
                 }
                 dlog('initial_messages rendered', counts);
@@ -928,6 +1078,7 @@ function initSession(){
   // Always-include state (global)
   const includeEnabledEl = qs('#include-enabled');
   const includeOnceEl = qs('#include-once');
+  if(includeOnceEl){ includeOnceEl.checked = true; }
   const includeTextEl = qs('#include-text');
   const includeCountEl = qs('#include-count');
   const INCLUDE_ENABLED_KEY = 'codex-include-enabled';

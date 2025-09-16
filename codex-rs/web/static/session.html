@@ -93,13 +93,17 @@
         <div class="card feed-card">
           <div class="card-head">
             <h3 id="title" class="meta">Session</h3>
-            <span id="reason-pill" class="pill pill-info">Reasoning: —</span>
           </div>
           <div id="feed" class="feed" aria-live="polite"></div>
           <div id="new-ind" class="new-indicator"><button class="btn ghost" id="scroll-new">New activity • Scroll</button></div>
         </div>
         <div class="card composer">
-          <h3>Chat</h3>
+          <div class="card-head composer-head">
+            <h3>Chat</h3>
+            <div id="chat-pill-row" class="chat-pill-row" role="status" aria-live="polite">
+              <span id="reason-pill" class="pill pill-info">Reasoning: —</span>
+            </div>
+          </div>
           <textarea id="chat" rows="1" placeholder="Type your prompt..."></textarea>
           <div class="right">
             <button id="attach" class="btn ghost" title="Attach images">Attach</button>
