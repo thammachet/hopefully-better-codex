@@ -45,7 +45,7 @@ fn sse_main_launch() -> String {
     "response": {"id": "__ID__", "usage": {"input_tokens":0,"input_tokens_details":null,"output_tokens":0,"output_tokens_details":null,"total_tokens":0}}
   }
 ]"#;
-    load_sse_fixture_with_id_from_str(&json, "resp-main")
+    load_sse_fixture_with_id_from_str(json, "resp-main")
 }
 
 /// SSE body for the sub-agent that calls the `shell` tool and then emits an assistant message.
@@ -76,13 +76,11 @@ fn sse_sub_runs_shell_with_escalated(script: &str, with_escalated: bool) -> Stri
 ]"#;
     let args = if with_escalated {
         format!(
-            "{{\\\"command\\\":[\\\"bash\\\",\\\"-lc\\\",\\\"{}\\\"],\\\"timeout\\\":2000,\\\"with_escalated_permissions\\\":true}}",
-            script
+            "{{\\\"command\\\":[\\\"bash\\\",\\\"-lc\\\",\\\"{script}\\\"],\\\"timeout\\\":2000,\\\"with_escalated_permissions\\\":true}}"
         )
     } else {
         format!(
-            "{{\\\"command\\\":[\\\"bash\\\",\\\"-lc\\\",\\\"{}\\\"],\\\"timeout\\\":2000}}",
-            script
+            "{{\\\"command\\\":[\\\"bash\\\",\\\"-lc\\\",\\\"{script}\\\"],\\\"timeout\\\":2000}}"
         )
     };
     let json = json.replace("__ARGS__", &args);

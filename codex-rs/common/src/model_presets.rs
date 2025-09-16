@@ -1,3 +1,4 @@
+use codex_core::config::GPT_5_CODEX_MEDIUM_MODEL;
 use codex_core::protocol_config_types::ReasoningEffort;
 
 /// A simple preset pairing a model slug with a reasoning effort.
@@ -21,6 +22,27 @@ pub struct ModelPreset {
 pub fn builtin_model_presets() -> &'static [ModelPreset] {
     // Order reflects effort from minimal to high.
     const PRESETS: &[ModelPreset] = &[
+        ModelPreset {
+            id: "gpt-5-codex-low",
+            label: "gpt-5-codex low",
+            description: "",
+            model: GPT_5_CODEX_MEDIUM_MODEL,
+            effort: ReasoningEffort::Low,
+        },
+        ModelPreset {
+            id: "gpt-5-codex-medium",
+            label: "gpt-5-codex medium",
+            description: "",
+            model: GPT_5_CODEX_MEDIUM_MODEL,
+            effort: ReasoningEffort::Medium,
+        },
+        ModelPreset {
+            id: "gpt-5-codex-high",
+            label: "gpt-5-codex high",
+            description: "",
+            model: GPT_5_CODEX_MEDIUM_MODEL,
+            effort: ReasoningEffort::High,
+        },
         ModelPreset {
             id: "gpt-5-minimal",
             label: "gpt-5 minimal",
@@ -48,13 +70,6 @@ pub fn builtin_model_presets() -> &'static [ModelPreset] {
             description: "— maximizes reasoning depth for complex or ambiguous problems",
             model: "gpt-5",
             effort: ReasoningEffort::High,
-        },
-        ModelPreset {
-            id: "gpt-5-high-new",
-            label: "gpt-5 high new",
-            description: "— our latest release tuned to rely on the model's built-in reasoning defaults",
-            model: "gpt-5-high-new",
-            effort: ReasoningEffort::Medium,
         },
     ];
     PRESETS

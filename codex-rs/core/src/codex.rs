@@ -2471,7 +2471,7 @@ async fn handle_sub_agent_launch(
     // Default sub-agent to run without approval prompts and with a permissive,
     // workspace-write sandbox unless explicitly overridden by the tool call.
     // Inherit approval and sandbox policies from the main agent.
-    let sa_approval_policy = turn_context.approval_policy.clone();
+    let sa_approval_policy = turn_context.approval_policy;
     let sa_sandbox_policy = turn_context.sandbox_policy.clone();
 
     let sa_context = TurnContext {
